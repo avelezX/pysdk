@@ -1,14 +1,16 @@
+import os
 from supabase import Client
 from supabase import create_client
 from supabase.lib.client_options import ClientOptions
+from dotenv import load_dotenv
 
+load_dotenv()
 
 class Xerenity:
 
     def __init__(self, username, password, auto_refresh: bool = False):
-        url: str = "https://tvpehjbqxpiswkqszwwv.supabase.co"
-        key: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2cGVoamJxeHBpc3drcXN6d3d2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTY0NTEzODksImV4cCI6MjAxMjAyNzM4OX0.LZW0i9HU81lCdyjAdqjwwF4hkuSVtsJsSDQh7blzozw"
-
+        url: str = os.getenv('XTY_URL')
+        key: str = os.getenv('XTY_TOKEN')
         opts = ClientOptions(auto_refresh_token=auto_refresh).replace(schema="xerenity")
 
         self.session: Client = create_client(url, key, options=opts)
