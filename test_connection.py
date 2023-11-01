@@ -11,12 +11,6 @@ xty = Xerenity(
     table_name="ibr_swaps"
 )
 
-data = xty.get_data()
-
-print(data.head())
-print(xty.get_date_columns())
-
-date_range = xty.get_date_range("event_timestamp", final_date="2023-10-25")
-print(len(date_range))
+print(len(xty.get_date_range().data))
 
 xty.log_out()

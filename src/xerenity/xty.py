@@ -16,7 +16,6 @@ class Xerenity:
         url: str = os.getenv('XTY_URL')
         key: str = os.getenv('XTY_TOKEN')
         opts = ClientOptions(auto_refresh_token=auto_refresh).replace(schema="xerenity")
-        self.data: pd.DataFrame = pd.DataFrame()
         self.data_name: str = table_name
 
         # Connection Client Initialization
@@ -28,10 +27,6 @@ class Xerenity:
                 "password": password
             }
         )
-
-        # Table Extraction
-        raw_data = self.read_table(table_name).data
-        self.data = self.convert_df(raw_data)
 
     # ---------------------------------------
     # Basic Functions
@@ -47,14 +42,6 @@ class Xerenity:
 
         self.session.auth.sign_out()
 
-    def get_data(self):
-        """Returns the data retrieved from DB
-
-        Returns:
-            The retrieved data from DB
-        """
-        return self.data
-
     def get_data_name(self):
         """Returns the data name retrieved from DB
 
@@ -63,14 +50,14 @@ class Xerenity:
         """
         return self.data_name
 
-    def read_table(self, table_name):
+    def read_table(self):
         """
 
         Retrieves all data from a given source
         :param table_name: table source to be read from
         :return:
         """
-        return self.session.table(table_name=table_name).select('*').execute()
+        return self.session.table(table_name=self.data_name).select('*').execute()
 
     def convert_df(self, data: list) -> pd.DataFrame:
         """
@@ -118,15 +105,15 @@ class Xerenity:
         Returns:
         - List[str]: List of column names with datetime data type.
         """
-        df = self.data
+        df = self.convert_df(self.read_table().data)
         return [column for column in df.columns if df[column].dtype == 'datetime64[ns]']
 
     # --------------------------------------
     # DF Advanced Manipulation Functions
     # --------------------------------------
 
-    def get_date_range(self, date_column_name: str = None, initial_date: np.datetime64 = None,
-                       final_date: np.datetime64 = None):
+    def get_date_range(self, date_column_name: str = None, initial_date: str = None,
+                       final_date: str = None):
         """
         Filters data based on date column and specified date range.
 
@@ -138,6 +125,7 @@ class Xerenity:
         Returns:
         - pd.DataFrame: Filtered DataFrame based on the specified date range.
         """
+        base_table = self.session.table(table_name=self.data_name).select('*')
         date_cols = self.get_date_columns()
         filter_by = date_column_name
 
@@ -156,11 +144,10 @@ class Xerenity:
 
         # Perform date range filtering
         if initial_date and final_date:
-            return self.data[
-                (self.data[filter_by] >= initial_date) & (self.data[filter_by] <= final_date)]
+            return base_table.gte(column=filter_by, value=initial_date).lte(column=filter_by, value=final_date).execute()
         elif initial_date:
-            return self.data[self.data[filter_by] >= initial_date]
+            return base_table.gte(column=filter_by, value=initial_date).execute()
         elif final_date:
-            return self.data[self.data[filter_by] <= final_date]
+            return base_table.lte(column=filter_by, value=final_date).execute()
         else:
-            return self.data
+            return base_table.execute()
