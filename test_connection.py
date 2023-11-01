@@ -7,15 +7,16 @@ load_dotenv()
 
 xty = Xerenity(
     username=os.getenv('XTY_USER'),
-    password=os.getenv('XTY_PWD')
+    password=os.getenv('XTY_PWD'),
+    table_name="ibr_swaps"
 )
 
-tes = Tes(xty=xty)
+data = xty.get_data()
 
-all_src = tes.get_sources()
+print(data.head())
+print(xty.get_date_columns())
 
-for src in all_src:
-    print('-----------------------------------')
-    print(xty.read_table(table_name='tes_24'))
+date_range = xty.get_date_range("event_timestamp", final_date="2023-10-25")
+print(len(date_range))
 
 xty.log_out()
