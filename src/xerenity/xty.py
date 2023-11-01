@@ -2,12 +2,13 @@ import os
 from supabase import Client
 from supabase import create_client
 from supabase.lib.client_options import ClientOptions
+from src.xerenity.modules.CPI.cpi import CPI_Functions
 from dotenv import load_dotenv
 import pandas as pd
-import numpy as np
+from postgrest import APIResponse
+from src.xerenity.modules.module_access_constants import MAC
 
 load_dotenv()
-
 
 class Xerenity:
 
@@ -29,6 +30,28 @@ class Xerenity:
         )
 
     # ---------------------------------------
+    # Subclases for Modules
+    # --------------------------------------
+
+    def CPI(self) -> CPI_Functions:
+        """
+        Creates an instance of the CPI_Functions class, allowing access to CPI-related functions.
+
+        Returns:
+        - CPI_Functions: An instance of the CPI_Functions class.
+        """
+        return CPI_Functions(self)
+
+    def get_cpi_tables(self) -> list:
+        """
+        Retrieves the CPI tables from the MAC dictionary.
+
+        Returns:
+        - list: A list containing the CPI-related tables from the MAC dictionary.
+        """
+        return MAC["CPI"]
+
+    # --------------------------------------
     # Basic Functions
     # --------------------------------------
 
@@ -50,7 +73,7 @@ class Xerenity:
         """
         return self.data_name
 
-    def read_table(self):
+    def read_table(self) -> APIResponse:
         """
 
         Retrieves all data from a given source
@@ -113,17 +136,17 @@ class Xerenity:
     # --------------------------------------
 
     def get_date_range(self, date_column_name: str = None, initial_date: str = None,
-                       final_date: str = None):
+                       final_date: str = None) -> APIResponse:
         """
         Filters data based on date column and specified date range.
 
         Args:
         - date_column_name (Optional[str]): Name of the date column.
-        - initial_date (Optional[np.datetime64]): Initial date for filtering.
-        - final_date (Optional[np.datetime64]): Final date for filtering.
+        - initial_date (Optional[str]): Initial date for filtering.
+        - final_date (Optional[str]): Final date for filtering.
 
         Returns:
-        - pd.DataFrame: Filtered DataFrame based on the specified date range.
+        - APIResponse: Filtered DataFrame based on the specified date range.
         """
         base_table = self.session.table(table_name=self.data_name).select('*')
         date_cols = self.get_date_columns()
