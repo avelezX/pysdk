@@ -2,6 +2,8 @@ import os
 from supabase import Client
 from supabase import create_client
 from supabase.lib.client_options import ClientOptions
+
+from src.xerenity.modules.BanRep.banrep import BanRep_Functions
 from src.xerenity.modules.CPI.cpi import CPI_Functions
 from dotenv import load_dotenv
 import pandas as pd
@@ -50,6 +52,15 @@ class Xerenity:
         - list: A list containing the CPI-related tables from the MAC dictionary.
         """
         return MAC["CPI"]
+
+    def BanRep(self) -> BanRep_Functions:
+        return BanRep_Functions(self)
+
+    def get_banrep_tables(self) -> list:
+        return MAC["BanRep"]
+
+    def get_econ_data_ids(self):
+        return self.session.table(table_name="banrep_serie").select("id, nombre").execute()
 
     # --------------------------------------
     # Basic Functions
