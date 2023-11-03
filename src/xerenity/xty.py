@@ -14,12 +14,12 @@ load_dotenv()
 
 class Xerenity:
 
-    def __init__(self, username: str, password: str, table_name: str, auto_refresh: bool = False):
+    def __init__(self, username: str, password: str, auto_refresh: bool = False):
         # Attribute Initialization
         url: str = os.getenv('XTY_URL')
         key: str = os.getenv('XTY_TOKEN')
         opts = ClientOptions(auto_refresh_token=auto_refresh).replace(schema="xerenity")
-        self.data_name: str = table_name
+        #self.data_name: str = table_name
 
         # Connection Client Initialization
         self.session: Client = create_client(url, key, options=opts)
@@ -84,14 +84,18 @@ class Xerenity:
         """
         return self.data_name
 
-    def read_table(self) -> APIResponse:
+    def read_table(self,table_name) -> APIResponse:
         """
 
         Retrieves all data from a given source
         :param table_name: table source to be read from
         :return:
         """
-        return self.session.table(table_name=self.data_name).select('*').execute()
+        return self.session.table(table_name=table_name).select('*').execute().data
+    
+    def read_table_df(self,table_name) -> pd.DataFrame:
+        return pd.DataFrame(self.read_table(table_name))
+    
 
     def convert_df(self, data: list) -> pd.DataFrame:
         """
