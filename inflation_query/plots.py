@@ -227,3 +227,9 @@ def uvr_plot(uvr,today):
     # Show the plot
     fig.show()
     fig.write_html('uvr_plot.html')     
+
+
+
+
+
+
