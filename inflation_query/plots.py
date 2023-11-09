@@ -51,7 +51,7 @@ def total_cpi_mom_plot(total_cpi_monthly,today):
     )
     # Show the plot
     fig.show()
-    fig.write_html('total_cpi_mom_plot.html')
+    fig.write_html('/Users/avelezxerenity/Documents/GitHub/wpages/total_cpi_mom_plot.html')
 
 
 #####################################
@@ -88,7 +88,7 @@ def total_cpi_yoy_plot(total_cpi_yoy,today):
 
     # Show the plot
     fig.show()
-    fig.write_html('total_cpi_yoy_plot.html')
+    fig.write_html('/Users/avelezxerenity/Documents/GitHub/wpages/total_cpi_yoy_plot.html')
 
 
 
@@ -125,7 +125,7 @@ def total_cpi_yoy_image(total_cpi_yoy,today):
     plt.legend()
     plt.tight_layout()
     plt.xticks(total_cpi_yoy.index[::12], [str(year) for year in total_cpi_yoy.index[::12].year], rotation=45)
-    plt.savefig('total_cpi_yoy_image.jpg', format='jpg')
+    plt.savefig('/Users/avelezxerenity/Documents/GitHub/wpages/total_cpi_yoy_image.jpg', format='jpg')
     plt.show()
 
 
@@ -160,7 +160,7 @@ def total_cpi_mom_image(total_cpi_monthly,today):
     plt.legend()
     plt.tight_layout()
     plt.xticks(total_cpi_monthly.index[::12], [str(year) for year in total_cpi_monthly.index[::12].year], rotation=45)
-    plt.savefig('total_cpi_mom_image.jpg', format='jpg')
+    plt.savefig('/Users/avelezxerenity/Documents/GitHub/wpages/total_cpi_mom_image.jpg', format='jpg')
     plt.show()
 
 
@@ -196,7 +196,7 @@ def uvr_image(uvr,today):
     plt.legend()
     plt.tight_layout()
     #plt.xticks(uvr.index[::12], [str(year) for year in uvr.index[::12].year], rotation=45)
-    plt.savefig('uvr_image.jpg', format='jpg')
+    plt.savefig('/Users/avelezxerenity/Documents/GitHub/wpages/uvr_image.jpg', format='jpg')
     plt.show()
 
 def uvr_plot(uvr,today):
@@ -226,7 +226,7 @@ def uvr_plot(uvr,today):
     )
     # Show the plot
     fig.show()
-    fig.write_html('uvr_plot.html')     
+    fig.write_html('/Users/avelezxerenity/Documents/GitHub/wpages/uvr_plot.html')     
 
 
 

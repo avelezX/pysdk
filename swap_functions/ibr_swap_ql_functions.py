@@ -3,7 +3,7 @@ sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 import os
 from inflation_query.Inflation_query import implied_inflation_calc
 from src.xerenity.xty import Xerenity
-from utilities.date_functions import add_months,ql_to_datetime
+from utilities.date_functions import add_months,ql_to_datetime,datetime_to_ql
 from swap_functions.ibr_quantlib_details import ibr_quantlib_det,ibr_overnight_index,ibr_swap_cupon_helper,depo_helpers_ibr
 from global_definitions.dates_mgt import  dates_convention_to_ql
 import pandas as pd
@@ -59,8 +59,8 @@ def fwd_rates_generation(curve,start_date,inverval_tenor=3,interval_period='m'):
     # Loop through 1-year steps up to 10 years (120 months)
     for i in range(1, 119):
         try:
-            # Calculate the forward rate for the current step
-            first_date = start_date + ql.Period(i, dates_convention_to_ql[interval_period])
+        # Calculate the forward rate for the current step
+            first_date = datetime_to_ql(start_date) + ql.Period(i, dates_convention_to_ql[interval_period])
             end_date = first_date + ql.Period(inverval_tenor, dates_convention_to_ql[interval_period])
             forward_rate = curve.forwardRate(first_date, end_date, ql.Actual360(), ql.Compounded).rate()
             dates.append(first_date)
