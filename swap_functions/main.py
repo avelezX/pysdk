@@ -66,11 +66,27 @@ def full_ibr_curve_creation(init_date,final_date,day_to_avoid_fwd_ois,days_to_on
 
 ##### Creacion de la curva FWD 
 
-
+###Creacion de la curva spot
 curve=full_ibr_curve_creation(init_date,final_date,day_to_avoid_fwd_ois,days_to_on)
+
+###Creacion de la curva FWD. 
 fwd_curve=fwd_rates_generation(curve,start_date,inverval_tenor=3,interval_period='m')
 
+# fwd_curve['fecha'] = pd.to_datetime(fwd_curve['fecha']).apply(str)
+# print(fwd_curve.to_dict(orient='records'))
 fwd_curve.to_clipboard()
+fwd_curve = fwd_curve.reset_index().rename(columns={'Maturity Date': 'fecha'})
+fwd_curve['fecha'] = pd.to_datetime(fwd_curve['fecha']).apply(str)
+print(fwd_curve.to_dict(orient='records'))
+
+#Esto borra todos los datos
+xty.session.table('ibr_implicita').delete().not_.is_('fecha', 'null').execute()
+
+# #Creacion de la inflacion implicita en supabase. 
+xty.session.table('ibr_implicita').insert(fwd_curve.to_dict(orient='records')).execute()
+
+
+
 
 
 

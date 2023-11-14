@@ -23,10 +23,15 @@ uvr_proyec=calculo_serie_uvr(cpi_serie=cpi['total_cpi'])
 # xty.session.table('inflacion_implicita').insert(cpi['total_cpi'].to_dict(orient='records')).execute()
 
 cpi = cpi['total_cpi'].reset_index().rename(columns={'index': 'fecha'})
-#cpi['fecha'] = pd.to_datetime(cpi['fecha']).apply(lambda x: pd.Timestamp(x))
+cpi['fecha'] = pd.to_datetime(cpi['fecha']).apply(str)
 print(cpi.to_dict(orient='records'))
-#xty.session.table('inflacion_implicita').delete().where('1=1').execute()
-#xty.session.table('inflacion_implicita').insert(cpi.to_dict(orient='records')).execute()
+
+
+#Esto borra todos los datos
+xty.session.table('inflacion_implicita').delete().not_.is_('fecha', 'null').execute()
+
+#Creacion de la inflacion implicita en supabase. 
+xty.session.table('inflacion_implicita').insert(cpi.to_dict(orient='records')).execute()
 
 ### Creacion de series de tiempo y figuras para entrega temporal. 
 
