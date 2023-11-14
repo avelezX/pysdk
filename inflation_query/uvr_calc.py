@@ -30,8 +30,8 @@ def calculo_serie_uvr(cpi_serie=None):
         current_date = add_months(init_date,m).date()
         next_date=add_months(current_date,1).date()
         try:
-            current_index_value=indice.loc[current_date]['Total']
-            next_index_value=indice.loc[next_date]['Total']
+            current_index_value=indice.loc[current_date]['indice']
+            next_index_value=indice.loc[next_date]['indice']
             valor_uvr=uvr.loc[current_date]['valor']
             uvr.loc[next_date]=valor_uvr*next_index_value/current_index_value
         except:

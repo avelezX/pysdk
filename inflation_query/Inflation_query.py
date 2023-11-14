@@ -113,17 +113,22 @@ def implied_inflation_calc():
     df['fecha'] = pd.to_datetime(df['fecha'])
     df.set_index('fecha', inplace=True)
     df_cpi=pd.DataFrame(df['Total'].dropna())
+    df_cpi.rename(columns={'Total': 'indice'}, inplace=True)
     df_cpi.set_index(pd.to_datetime(df_cpi.index.year*10000 + df_cpi.index.month*100 + 15, format='%Y%m%d'), inplace=True)
+    
+    
+    
 
-
-    total_cpi=df_cpi['Total']
-
+    total_cpi=df_cpi['indice']
+    
+    print('ëstoy imprimiendo-----------' )
     print(total_cpi)
     for d in date_df['Date']:
         d_1=d-ql.Period('1y')
         f_1=total_cpi[ql_to_datetime(d_1)]
         f_2=(1+date_df['Inflacion Implicita'][date_df['Date']==d].values)
         total_cpi.loc[ql_to_datetime(d)]=f_1*f_2[0]
+        print(d)
 
     total_cpi=pd.DataFrame(total_cpi)
     total_cpi_monthly=total_cpi.pct_change(periods=1)

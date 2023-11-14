@@ -143,7 +143,7 @@ class Xerenity:
         Returns:
         - List[str]: List of column names with datetime data type.
         """
-        df = self.convert_df(self.read_table(table_name=table_name).data,table_name=table_name)
+        df = self.convert_df(self.read_table(table_name=table_name))
         return [column for column in df.columns if df[column].dtype == 'datetime64[ns]']
 
     # --------------------------------------
