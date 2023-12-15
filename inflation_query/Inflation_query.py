@@ -15,7 +15,7 @@ import plotly.graph_objects as go
 import seaborn as sns
 import matplotlib.pyplot as plt
 load_dotenv()
-
+print(os.getenv('XTY_USER'))
 xty = Xerenity(
     username=os.getenv('XTY_USER'),
     password=os.getenv('XTY_PWD'),

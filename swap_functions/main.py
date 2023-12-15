@@ -1,7 +1,7 @@
 import sys
 sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 import os
-from inflation_query.Inflation_query import implied_inflation_calc
+#from inflation_query.Inflation_query import implied_inflation_calc
 from src.xerenity.xty import Xerenity
 from utilities.date_functions import add_months,ql_to_datetime
 from utilities.rate_conversion_functions import nom_to_effective

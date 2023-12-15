@@ -30,4 +30,4 @@ websockets==10.4
 QuantLib
 seaborn
 plotly
-
+numpy_financial

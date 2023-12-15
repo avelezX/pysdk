@@ -24,6 +24,7 @@ class Xerenity:
         # Connection Client Initialization
         self.session: Client = create_client(url, key, options=opts)
 
+
         self.session.auth.sign_in_with_password(
             {
                 "email": username,
