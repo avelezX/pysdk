@@ -16,7 +16,15 @@ xty = Xerenity(
 
 # Calculate the vectors
 cpi=implied_inflation_calc()
-uvr_proyec=calculo_serie_uvr(cpi_serie=cpi['total_cpi'])
+uvr_projec=calculo_serie_uvr(cpi_serie=cpi['total_cpi'])
+
+uvr_projec.reset_index(inplace=True)
+uvr_projec.rename(columns={'index': 'fecha'}, inplace=True)
+uvr_projec.reset_index(drop=True, inplace=True)
+uvr_projec['fecha'] = uvr_projec['fecha'].astype(str)
+xty.session.table('uvr_projection').delete().not_.is_('fecha', 'null').execute()
+xty.session.table('uvr_projection').insert(uvr_projec.to_dict(orient='records')).execute()
+
 # uvr_proyec.to_clipboard()
 # cpi['total_cpi'].reset_index().rename(columns={'index': 'fecha'})
 
@@ -26,13 +34,10 @@ cpi = cpi['total_cpi'].reset_index().rename(columns={'index': 'fecha'})
 cpi['fecha'] = pd.to_datetime(cpi['fecha']).apply(str)
 print(cpi.to_dict(orient='records'))
 
-
 #Esto borra todos los datos
 xty.session.table('inflacion_implicita').delete().not_.is_('fecha', 'null').execute()
-
 #Creacion de la inflacion implicita en supabase. 
 xty.session.table('inflacion_implicita').insert(cpi.to_dict(orient='records')).execute()
-
 ### Creacion de series de tiempo y figuras para entrega temporal. 
 
 #total_cpi_mom_image(total_cpi_monthly=cpi['total_cpi_monthly'],today=today)
@@ -41,7 +46,6 @@ xty.session.table('inflacion_implicita').insert(cpi.to_dict(orient='records')).e
 #total_cpi_yoy_plot(total_cpi_yoy=cpi['total_cpi_yoy'],today=today)
 #uvr_plot(uvr_proyec,today=today.date())
 #uvr_image(uvr_proyec,today=today.date())
-
 
 
 

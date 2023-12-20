@@ -37,5 +37,5 @@ def calculo_serie_uvr(cpi_serie=None):
         except:
             print("Existio un error solo se pudo calcular hasta el año")
             print(current_date)
-    uvr.dropna().to_csv('uvr_.csv')
-    return uvr
+    #uvr.dropna().to_csv('uvr_.csv')
+    return uvr.dropna()

@@ -38,9 +38,9 @@ ibr_on=xty.BanRep().get_econ_data_last(id_serie=19).data[0]['valor']/100
 ##### Cronstruir los datos para el calculo de la curva. 
 
 #####Determinacion del rango de fechas de las cuales se quiere traer los datos de IBR
-init_date=datetime(2023, 11, 8).date()
+init_date=datetime(2023, 12, 19).date()
 final_date=init_date
-start_date=datetime(2023, 12, 15).date()
+start_date=datetime(2023, 12, 24).date()
 day_to_avoid_fwd_ois=7
 days_to_on=8
 
@@ -77,6 +77,9 @@ fwd_curve=fwd_rates_generation(curve,start_date,inverval_tenor=3,interval_period
 fwd_curve.to_clipboard()
 fwd_curve = fwd_curve.reset_index().rename(columns={'Maturity Date': 'fecha'})
 fwd_curve['fecha'] = pd.to_datetime(fwd_curve['fecha']).apply(str)
+def nom_to_effective(nominal_rate,compounding_frequency):
+    return (1 + nominal_rate / compounding_frequency) ** compounding_frequency - 1
+fwd_curve['rate']=nom_to_effective(fwd_curve['rate'],365)*100
 print(fwd_curve.to_dict(orient='records'))
 
 #Esto borra todos los datos
