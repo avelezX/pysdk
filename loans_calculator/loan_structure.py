@@ -16,7 +16,7 @@ import pandas as pd
 
 
 class Loan:
-    def __init__(self, term_years, interest_rate, original_balance, start_date):
+    def __init__(self, term_months, interest_rate, original_balance, start_date):
         """
         Initializes a Loan object.
 
@@ -26,7 +26,7 @@ class Loan:
         - original_balance (float): The initial loan amount.
         - start_date (datetime): The start date of the loan.
         """
-        self.term_years = term_years
+        self.term_months = term_months
         self.interest_rate = interest_rate
         self.original_balance = original_balance
         self.start_date = start_date
@@ -40,7 +40,7 @@ class Loan:
         - float: The calculated monthly payment.
         """
         monthly_interest_rate = self.interest_rate / 12 / 100
-        num_payments = self.term_years * 12
+        num_payments = self.term_months
         monthly_payment = npf.pmt(monthly_interest_rate, num_payments, -self.original_balance)
         return monthly_payment
 
@@ -52,7 +52,7 @@ class Loan:
         - pd.DataFrame: A DataFrame containing the cash flow details.
         """
         monthly_payment = self.calculate_monthly_payment()
-        periods = list(range(1, self.term_years * 12 + 1))
+        periods = list(range(1, self.term_months + 1))
 
         interest_payment = []
         principal_payment = []
