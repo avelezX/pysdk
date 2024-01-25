@@ -8,7 +8,7 @@ from bond_functions.bond_structure import tes_bond_structure
 from bond_functions.bond_curve_structures import BondCurve
 from bond_functions.tes_quant_lib_details import depo_helpers,tes_quantlib_det
 from utilities.date_functions import ql_to_datetime
-from db_call.db_call import get_last_banrep_1,get_last_cpi,get_tes_table
+from db_call.db_call import get_last_banrep_1,get_last_cpi,get_tes_table,get_last_cpi_lag
 import datetime as dt
 import QuantLib as ql
 import pandas as pd
@@ -110,7 +110,7 @@ def implied_inflation_calc():
 
 
 
-    df=get_last_cpi()
+    df=get_last_cpi_lag()
 
     df['Total'] = df['indice']
     df['fecha'] = pd.to_datetime(df['fecha'])

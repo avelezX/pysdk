@@ -1,5 +1,6 @@
-#import sys
-#sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+# %%
+import sys
+sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 from datetime import datetime
 from utilities.date_functions import datetime_to_ql,ql_to_datetime
 import pandas as pd
@@ -113,9 +114,11 @@ class Loan:
 
         return cf_table
     
-    def generate_rates_ibr(self,value_date,periodicidad_tasa='MV'):
+    def generate_rates_ibr(self,value_date,curve,periodicidad_tasa='MV'):
         
         number_to_user = {'Anual': 1, 'Semestral': 0.5, 'Trimestral': 1/4, 'Bimensual': 1/6, 'Mensual': 1/12}
+        periodicidad_tasa_number = { 'SV': 0.5, 'TV': 1/4, 'MV': 1/12}
+        
         periods = list(range(1, self.number_of_payments + 1))
         date_list=[]
         
@@ -141,6 +144,21 @@ class Loan:
                 closest_value = tasas.at[closest_date, 'valor']
                 result_df.at[i, 'tasa'] = closest_value
             #date_list = [self.start_date_ql + ql.Period(i, ql.Months) for i in range(len(periods))]
+            else:
+                
+                next_date=date+ ql.Period(int(12*periodicidad_tasa_number[periodicidad_tasa]), ql.Months)
+                print('date:')
+                print(date)
+                print('Next date:')
+                print(next_date)
+                result_df.at[i,'tasa']=curve.forwardRate(date, next_date, ql.Actual360(), ql.Simple).rate()*100
+
+            result_df['pagocapital']=self.original_balance/self.number_of_payments
+            #pago_intereses
+
         return result_df
         
-    
+
+
+
+# %%
