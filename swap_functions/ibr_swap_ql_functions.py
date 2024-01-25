@@ -44,9 +44,8 @@ def ibr_swaps_quotes(ibr_quotes):
 # TODO el usuario deberia poder cambiar el tipo de curva creada en ql por otro tipo de 
 # Create the quantlib curve. 
 def crear_objeto_curva_ibr(quotes):
-    return ql.PiecewiseSplineCubicDiscount(0, ibr_quantlib_det['calendar'], quotes, ql.Actual360())
-
-
+    #return ql.PiecewiseSplineCubicDiscount(0, ibr_quantlib_det['calendar'], quotes, ql.Actual360())
+    return ql.PiecewiseLogLinearDiscount(0, ibr_quantlib_det['calendar'], quotes, ql.Actual360())
 
 
 
@@ -60,9 +59,13 @@ def fwd_rates_generation(curve,start_date,inverval_tenor=3,interval_period='m'):
     for i in range(1, 119):
         try:
         # Calculate the forward rate for the current step
+            # i=1
+            #interval_period='m'
+            #inverval_tenor=3
+
             first_date = datetime_to_ql(start_date) + ql.Period(i, dates_convention_to_ql[interval_period])
             end_date = first_date + ql.Period(inverval_tenor, dates_convention_to_ql[interval_period])
-            forward_rate = curve.forwardRate(first_date, end_date, ql.Actual360(), ql.Compounded).rate()
+            forward_rate = curve.forwardRate(first_date, end_date, ql.Actual360(), ql.Simple).rate()
             dates.append(first_date)
             forward_rates.append(forward_rate)
             # Print the result

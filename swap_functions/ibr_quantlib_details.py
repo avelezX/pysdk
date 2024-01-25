@@ -55,7 +55,6 @@ def depo_helpers_ibr(rate,tenor,tenor_unit):
 
 
 
-print(ibr_swap_cupon_helper(0.11,2,ql.Years))
 
 # def ibr_swap_zero_helper(rate,tenor,tenor_unit):
 #     settlementDays = ql.Quote
