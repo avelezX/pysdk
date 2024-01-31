@@ -172,6 +172,7 @@ class Loan:
                 factor_cobro = (1 + tasa_en_periodo) ** (
                             periodicidad_tasa_number[periodicidad_tasa] / self.number_to_user[self.periodicity]) - 1
 
+            factor_cobro=factor_cobro/100
             # result_df.at[i,'factor_cobro']=factor_cobro
             result_df.at[i, 'beginning_balance'] = self.original_balance - (
                         self.original_balance / self.number_of_payments) * i
