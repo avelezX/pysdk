@@ -83,7 +83,7 @@ class LoanCalculatorServer(XerenityFunctionServer):
         :return:
         """
         try:
-            print("Calculating cash_flow_ibr")
+
             self.loan.rate_type = 'IBR'
             today = datetime.today().date()
             value_date = datetime(year=today.year, month=today.month, day=today.day)
@@ -94,18 +94,15 @@ class LoanCalculatorServer(XerenityFunctionServer):
                 day_to_avoid_fwd_ois=7,
                 db_info=self.loan.db_info
             )
-            print("Curve obj ready")
 
             curve = curve_details.crear_curva(days_to_on=1)
 
-            print("Curve ready")
             payment = self.loan.generate_rates_ibr(
                 value_date=value_date,
                 curve=curve,
                 tipo_de_cobro='por_dias_360',
                 periodicidad_tasa='MV'
             )
-            print("payment ready")
 
             if type(payment) is pd.DataFrame:
 
