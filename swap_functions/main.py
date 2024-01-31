@@ -29,10 +29,10 @@ class full_ibr_curve_creation:
         # Replace with your desired date
         calendar=calendar_colombia()
 
-        print("Looop antes")
+
         while not calendar.isBusinessDay(self.desired_date):
             self.desired_date=calendar.advance(self.desired_date,-1,ql.Days)
-        print("Looop despues")
+
         def is_past_noon():
             current_time = datetime.now().time()
             noon_time = time(12, 0, 0)  # Noon time
@@ -50,6 +50,7 @@ class full_ibr_curve_creation:
         self.final_date=final_date
 
     def crear_curva(self,days_to_on=1):
+        print("creando curva")
         #dias para definir el proximo depositod days_to_on=7
 
         #def full_ibr_curve_creation(init_date,final_date,day_to_avoid_fwd_ois,days_to_on,db_info):
@@ -62,18 +63,11 @@ class full_ibr_curve_creation:
         ibr_query=ibr_mean_query_to_dictionary(ibr_cluster_mean,'m')
         ########Con el directiorio creamos los helpers en quantlib .to_dict porque recibe una lista de directorios. 
         OIS_helpers=ibr_swaps_quotes(ibr_query.to_dict(orient='records')) 
-        ### Variable para ponerle una maduiracion a los depositos. 
-        
-        #####Poniendole el ON como helper a la curva
-        print('depo helper info:')
-        print('rate:')
-        print(self.db_info['ibr_1m'])
-        print('tenor:')
-        print(days_to_on)
+        ### Variable para ponerle una maduracion a los depositos.
         OIS_helpers.append(depo_helpers_ibr(self.db_info['ibr_1m'],days_to_on,ql.Months))
         #### Crendo el objeto curva en la salida. 
-        curve= crear_objeto_curva_ibr(OIS_helpers)
-        return curve
+        #curve= crear_objeto_curva_ibr(OIS_helpers)
+        return crear_objeto_curva_ibr(OIS_helpers)
 
 ##### Creacion de la curva FWD 
 ###Creacion de la curva spot

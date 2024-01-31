@@ -1,12 +1,8 @@
 import sys
-
-#sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
-
+sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 import QuantLib as ql
-
 from datetime import datetime
-
-
+from utilities.colombia_calendar import calendar_colombia
 from swap_functions.main import full_ibr_curve_creation
 from loans_calculator.loan_structure import Loan
 from db_call.db_call import get_last_n_banrep_ibr_1m_nom, get_last_n_banrep_ibr_3m_nom, get_last_n_banrep_ibr_6m_nom, \
@@ -19,7 +15,7 @@ period_to_curve = {'SV': get_last_n_banrep_ibr_6m_nom(), 'TV': get_last_n_banrep
                    'MV': get_last_n_banrep_ibr_1m_nom(), 'ibr_cluster_table': get_ibr_cluster_table(),
                    'ibr_on': get_banrep_19(), 'ibr_1m': get_banrep_16()}
 
-from utilities.colombia_calendar import calendar_colombia
+
 
 curve_details = full_ibr_curve_creation(desired_date_valuation=ql.Date.todaysDate(), calendar=calendar_colombia(),
                                         day_to_avoid_fwd_ois=7, db_info=db_info)

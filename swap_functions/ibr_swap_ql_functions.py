@@ -2,13 +2,13 @@ import sys
 sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 import os
 #from inflation_query.Inflation_query import implied_inflation_calc
-from src.xerenity.xty import Xerenity
+
 from utilities.date_functions import add_months,ql_to_datetime,datetime_to_ql
 from swap_functions.ibr_quantlib_details import ibr_quantlib_det,ibr_overnight_index,ibr_swap_cupon_helper,depo_helpers_ibr
 from global_definitions.dates_mgt import  dates_convention_to_ql
 import pandas as pd
 import QuantLib as ql
-import plotly.graph_objects as go
+
 from datetime import datetime,date
 #xty = Xerenity(
 #    username=os.getenv('XTY_USER'),
@@ -70,9 +70,8 @@ def fwd_rates_generation(curve,start_date,inverval_tenor=3,interval_period='m'):
             forward_rates.append(forward_rate)
             # Print the result
             #print(f"1-month {i/12} year forward rate: {forward_rate:.4%}")
-        except:
-            
-            print('fwd curve tenor to calculate not in curve quotes')
+        except Exception as e:     
+            print(e)
 
     df = pd.DataFrame(list(zip(dates, forward_rates)), columns=['Maturity Date', 'rate'])
     df['Maturity Date'] = df['Maturity Date'].apply(ql_to_datetime)

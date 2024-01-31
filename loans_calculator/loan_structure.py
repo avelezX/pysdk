@@ -107,6 +107,10 @@ class Loan:
         return cf_table
 
     def generate_rates_ibr(self, value_date, curve, tipo_de_cobro='por_dias_360', periodicidad_tasa='MV'):
+        # Value date debe ser el dia actual, para que la curva IBR coincida con la valoracion
+        # Curve deberia ser una curva de IBR generada con la valoracion de la curva actual 
+        # Tipo de cobro depende del banco que emite el credito. 
+        #Periodicidad tasa "SV", "TV"o "MV"
 
         number_to_user = {'Anual': 1, 'Semestral': 0.5, 'Trimestral': 1 / 4, 'Bimensual': 1 / 6, 'Mensual': 1 / 12}
         periodicidad_tasa_number = {'SV': 0.5, 'TV': 1 / 4, 'MV': 1 / 12}
@@ -178,7 +182,7 @@ class Loan:
             cf_table = result_df[
                 ['date', 'beginning_balance', 'rate', 'payment', 'interest', 'principal', 'ending_balance']]
             # pago_intereses
-
+            cf_table['date'] = cf_table['date'].apply(ql_to_datetime)
         return cf_table
 
 # %%
