@@ -1,4 +1,4 @@
-
+# %%
 from utilities.date_functions import datetime_to_ql, ql_to_datetime
 import QuantLib as ql
 import pandas as pd
@@ -144,12 +144,14 @@ class Loan:
                 # Assign the corresponding 'tasa' value to the result DataFrame
                 closest_value = tasas.at[closest_date, 'valor']
                 result_df.at[i, 'rate'] = closest_value
+                result_df.at[i, 'rate_tot']=result_df.at[i, 'rate']+self.interest_rate
             # date_list = [self.start_date_ql + ql.Period(i, ql.Months) for i in range(len(periods))]
             else:
 
                 next_date = date + ql.Period(int(12 * periodicidad_tasa_number[periodicidad_tasa]), ql.Months)
                 result_df.at[i, 'rate'] = curve.forwardRate(date - moving_period, next_date - moving_period,
                                                             ql.Actual360(), ql.Simple).rate() * 100
+                result_df.at[i, 'rate_tot']=result_df.at[i, 'rate']+self.interest_rate
 
             if tipo_de_cobro == 'por_dias_360':
                 # Calculate the actual number of days between the two dates
@@ -174,6 +176,7 @@ class Loan:
 
             factor_cobro=factor_cobro/100
             # result_df.at[i,'factor_cobro']=factor_cobro
+            
             result_df.at[i, 'beginning_balance'] = self.original_balance - (
                         self.original_balance / self.number_of_payments) * i
             result_df.at[i, 'interest'] = factor_cobro * result_df.at[i, 'beginning_balance']
@@ -181,7 +184,7 @@ class Loan:
                         self.original_balance / self.number_of_payments) * (i + 1)
             result_df.at[i, 'payment'] = result_df.at[i, 'interest'] + result_df.at[i, 'principal']
             cf_table = result_df[
-                ['date', 'beginning_balance', 'rate', 'payment', 'interest', 'principal', 'ending_balance']]
+                ['date', 'beginning_balance', 'rate','rate_tot', 'payment', 'interest', 'principal', 'ending_balance']]
             # pago_intereses
             cf_table['date'] = cf_table['date'].apply(ql_to_datetime)
         return cf_table
@@ -231,4 +234,4 @@ class Loan:
 
 
 
-# %%
+
