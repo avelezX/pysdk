@@ -41,4 +41,11 @@ def calculo_serie_uvr(cpi_serie=None,uvr_db=None):
             print("Existio un error solo se pudo calcular hasta el año")
             print(current_date)
     # uvr.dropna().to_csv('uvr_.csv')
-    return uvr.dropna()
+    # uvr = uvr.interpolate(method='linear')
+    uvr=uvr.sort_values(by='fecha')
+      
+    # uvr.reset_index(inplace=True)
+    # uvr.rename(columns={'index': 'fecha'}, inplace=True)
+    # uvr.reset_index(drop=True, inplace=True)
+    # uvr['fecha'] = uvr['fecha'].astype(str)
+    return uvr

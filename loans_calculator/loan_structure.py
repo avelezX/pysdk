@@ -1,4 +1,4 @@
-
+# %%
 from utilities.date_functions import datetime_to_ql, ql_to_datetime
 import QuantLib as ql
 import pandas as pd
@@ -144,12 +144,14 @@ class Loan:
                 # Assign the corresponding 'tasa' value to the result DataFrame
                 closest_value = tasas.at[closest_date, 'valor']
                 result_df.at[i, 'rate'] = closest_value
+                result_df.at[i, 'rate_tot']=result_df.at[i, 'rate']+self.interest_rate
             # date_list = [self.start_date_ql + ql.Period(i, ql.Months) for i in range(len(periods))]
             else:
 
                 next_date = date + ql.Period(int(12 * periodicidad_tasa_number[periodicidad_tasa]), ql.Months)
                 result_df.at[i, 'rate'] = curve.forwardRate(date - moving_period, next_date - moving_period,
                                                             ql.Actual360(), ql.Simple).rate() * 100
+                result_df.at[i, 'rate_tot']=result_df.at[i, 'rate']+self.interest_rate
 
             if tipo_de_cobro == 'por_dias_360':
                 # Calculate the actual number of days between the two dates
@@ -174,6 +176,7 @@ class Loan:
 
             factor_cobro=factor_cobro/100
             # result_df.at[i,'factor_cobro']=factor_cobro
+            
             result_df.at[i, 'beginning_balance'] = self.original_balance - (
                         self.original_balance / self.number_of_payments) * i
             result_df.at[i, 'interest'] = factor_cobro * result_df.at[i, 'beginning_balance']
@@ -181,9 +184,54 @@ class Loan:
                         self.original_balance / self.number_of_payments) * (i + 1)
             result_df.at[i, 'payment'] = result_df.at[i, 'interest'] + result_df.at[i, 'principal']
             cf_table = result_df[
-                ['date', 'beginning_balance', 'rate', 'payment', 'interest', 'principal', 'ending_balance']]
+                ['date', 'beginning_balance', 'rate','rate_tot', 'payment', 'interest', 'principal', 'ending_balance']]
             # pago_intereses
             cf_table['date'] = cf_table['date'].apply(ql_to_datetime)
         return cf_table
 
-# %%
+    def generate_cash_flow_table_uvr(self,uvr=None):
+            """
+            Generates a cash flow table for the loan.
+
+            Returns:
+            - pd.DataFrame: A DataFrame containing the cash flow details.
+            """
+            monthly_payment = self.calculate_custom_period_payment()
+            periods = list(range(1, self.number_of_payments + 1))
+
+            interest_payment = []
+            principal_payment = []
+            ending_balance = []
+            date_list = []
+            current_balance = self.original_balance
+
+            for i in range(len(periods)):
+                date_list.append(
+                    self.start_date_ql + ql.Period(int((i + 1) * (12 * self.number_to_user[self.periodicity])), ql.Months))
+                interest_payment.append(
+                    current_balance * (self.interest_rate / 100 * self.number_to_user[self.periodicity]))
+                principal_payment.append(monthly_payment - interest_payment[-1])
+                ending_balance.append(current_balance - principal_payment[-1])
+
+                current_balance = ending_balance[-1]
+
+            # date_list = [self.start_date_ql + ql.Period(i, ql.Months) for i in range(len(periods))]
+            date_list = [ql_to_datetime(ql_date) for ql_date in date_list]
+            cf_data = {
+                'date': date_list,
+                'interest': interest_payment,
+                'rate': self.interest_rate,
+                'principal': principal_payment,
+                'payment': [monthly_payment] * len(periods),
+                'ending_balance': ending_balance,
+                'beginning_balance': [self.original_balance] + ending_balance[:-1]
+            }
+
+            cf_table = pd.DataFrame(data=cf_data, index=periods)
+            cf_table = cf_table[['date', 'beginning_balance', 'rate', 'payment', 'interest', 'principal', 'ending_balance']]
+
+            return cf_table
+
+
+
+

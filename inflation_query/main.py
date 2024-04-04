@@ -12,7 +12,7 @@ from inflation_query.Inflation_query import implied_inflation_calc
 
 from db_call.db_call import get_last_banrep_8,get_tes_table,get_last_banrep_1,get_last_cpi
 
-today = datetime(202, 1, 31)
+today = datetime(2024, 1, 31)
 
 xty = Xerenity(
     username=os.getenv('XTY_USER'),

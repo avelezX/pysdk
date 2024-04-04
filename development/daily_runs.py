@@ -50,8 +50,6 @@ xty.session.table('ibr_implicita').insert(fwd_curve.to_dict(orient='records')).e
 
 
 
-
-
 #############################################
 ####### Generacion de UBR  ######
 #############################################
@@ -66,10 +64,10 @@ uvr_projec = calculo_serie_uvr(cpi_serie=cpi['total_cpi'],uvr_db=db_uvr_call['uv
 
 
 
-uvr_projec.reset_index(inplace=True)
-uvr_projec.rename(columns={'index': 'fecha'}, inplace=True)
-uvr_projec.reset_index(drop=True, inplace=True)
-uvr_projec['fecha'] = uvr_projec['fecha'].astype(str)
+# uvr_projec.reset_index(inplace=True)
+# uvr_projec.rename(columns={'index': 'fecha'}, inplace=True)
+# uvr_projec.reset_index(drop=True, inplace=True)
+# uvr_projec['fecha'] = uvr_projec['fecha'].astype(str)
 
 
 xty.session.table('uvr_projection').delete().not_.is_(
