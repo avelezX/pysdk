@@ -101,7 +101,7 @@ class LoanCalculatorServer(XerenityFunctionServer):
             value_date = datetime(year=start.year(), month=start.month(), day=start.dayOfMonth())
 
             curve_details = full_ibr_curve_creation(
-                desired_date_valuation=value_date,
+                desired_date_valuation=ql.Date(value_date.day, value_date.month, value_date.year),
                 calendar=calendar_colombia(),
                 day_to_avoid_fwd_ois=7,
                 db_info=self.loan.db_info
