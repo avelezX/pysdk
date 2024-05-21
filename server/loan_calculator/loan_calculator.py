@@ -85,11 +85,23 @@ class LoanCalculatorServer(XerenityFunctionServer):
 
             self.loan.rate_type = 'IBR'
             today = datetime.today().date()
+            start = ql.Date(today.day, today.month, today.year)
+            ql_today = ql.Date(today.day, today.month, today.year)
+            calendar = calendar_colombia()
+            depth_search = 8
 
-            value_date = datetime(year=today.year, month=today.month, day=today.day)
+            while not calendar.isBusinessDay(start) and depth_search >= 0:
+                start = calendar.advance(start, -1, ql.Days)
+                depth_search = depth_search - 1
+
+            if depth_search == 0:
+                print("No business day found in {} days".format(depth_search))
+                start = ql_today
+
+            value_date = datetime(year=start.year(), month=start.month(), day=start.dayOfMonth())
 
             curve_details = full_ibr_curve_creation(
-                desired_date_valuation=ql.Date.todaysDate(),
+                desired_date_valuation=value_date,
                 calendar=calendar_colombia(),
                 day_to_avoid_fwd_ois=7,
                 db_info=self.loan.db_info
