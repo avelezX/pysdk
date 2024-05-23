@@ -1,4 +1,4 @@
 MAC ={
     "CPI": ["canasta", "canasta_values", "cpi_total_index"],
-    "BanRep": ["banrep_serie", "banrep_serie_value"],
+    "BanRep": ["banrep_serie_v2", "banrep_serie_value_v2"],
 }

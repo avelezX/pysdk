@@ -18,10 +18,10 @@ class BanRep_Functions:
         #     raise Exception(f"{self.xty.data_name} not compatible with BanRep calculations.")
 
     def get_econ_data(self, id_serie: int) -> APIResponse:
-        return self.xty.session.table(table_name="banrep_serie_value").select("*").eq(column="id_serie", value=id_serie).order(column="fecha", desc=False).execute()
+        return self.xty.session.table(table_name="banrep_serie_value_v2").select("*").eq(column="id_serie", value=id_serie).order(column="fecha", desc=False).execute()
 
     def get_econ_data_last(self,id_serie: int) -> APIResponse:
-        return self.xty.session.table(table_name="banrep_serie_value").select("*").eq(column="id_serie", value=id_serie).order(column="fecha", desc=True).limit(1).execute()
+        return self.xty.session.table(table_name="banrep_serie_value_v2").select("*").eq(column="id_serie", value=id_serie).order(column="fecha", desc=True).limit(1).execute()
     
     def get_econ_data_last_n(self,id_serie: int,n:int) -> APIResponse:
-        return self.xty.session.table(table_name="banrep_serie_value").select("*").eq(column="id_serie", value=id_serie).order(column="fecha", desc=True).limit(n).execute()
+        return self.xty.session.table(table_name="banrep_serie_value_v2").select("*").eq(column="id_serie", value=id_serie).order(column="fecha", desc=True).limit(n).execute()

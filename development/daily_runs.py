@@ -11,7 +11,7 @@ from swap_functions.ibr_swap_ql_functions import fwd_rates_generation
 from swap_functions.main import full_ibr_curve_creation
 from inflation_query.uvr_calc import calculo_serie_uvr
 from inflation_query.Inflation_query import implied_inflation_calc
-from db_call.db_call import get_last_banrep_8,get_tes_table,get_last_banrep_1,get_last_cpi,get_banrep_19, get_ibr_cluster_table, get_banrep_16
+from db_call.db_call import get_last_banrep_8,get_tes_table,get_last_cpi, get_ibr_cluster_table, get_banrep_16,get_last_banrep
 
 
 
@@ -22,7 +22,9 @@ xty = Xerenity(
 )
 
 # Necesarias para la creacion diaria de las curvas. 
-db_info = {'ibr_cluster_table': get_ibr_cluster_table(), 'ibr_on': get_banrep_19(), 'ibr_1m': get_banrep_16()}
+db_info = {'ibr_cluster_table': get_ibr_cluster_table(), 
+           'ibr_on':get_last_banrep("Indicador Bancario de Referencia (IBR) overnight, nominal",0).data[0]['valor']/100, 
+           'ibr_1m': get_last_banrep("Indicador Bancario de Referencia (IBR) 1 Mes, nominal",365*5).data[0]['valor']/100}
 
 
 #############################################
@@ -55,7 +57,8 @@ xty.session.table('ibr_implicita').insert(fwd_curve.to_dict(orient='records')).e
 #############################################
 
 today =start_date #datetime(202, 1, 31)
-db_uvr_call={'uvr':get_last_banrep_8(),'cbr':get_last_banrep_1(),'tes_table':get_tes_table(),'last_cpi':get_last_cpi()}
+db_uvr_call={'uvr':get_last_banrep_8(),'cbr':get_last_banrep("Tasa de Politica Monetaria",0).data[0]['valor'],
+             'tes_table':get_tes_table(),'last_cpi':get_last_cpi()}
 
 # Calculate the vectors
 

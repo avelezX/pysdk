@@ -61,7 +61,7 @@ class Xerenity:
         return MAC["BanRep"]
 
     def get_econ_data_ids(self):
-        return self.session.table(table_name="banrep_serie").select("id, nombre").execute()
+        return self.session.table(table_name="banrep_serie_v2").select("id, nombre").execute()
 
     # --------------------------------------
     # Basic Functions
