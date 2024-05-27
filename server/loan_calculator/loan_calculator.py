@@ -88,6 +88,7 @@ class LoanCalculatorServer(XerenityFunctionServer):
             start = ql.Date(today.day, today.month, today.year)
             ql_today = ql.Date(today.day, today.month, today.year)
             calendar = calendar_colombia()
+            start = calendar.advance(start, -1, ql.Days)
             depth_search = 8
 
             while not calendar.isBusinessDay(start) and depth_search >= 0:

@@ -10,15 +10,14 @@ from utilities.colombia_calendar import calendar_colombia
 
 today = datetime.today().date()
 start = ql.Date(today.day, today.month, today.year)
+calendar = calendar_colombia()
 
 print("--------TODAY-------")
 print(start)
 
-calendar = calendar_colombia()
-start = calendar.advance(start, -2, ql.Days)
-print("--------YESTERDAY-------")
-print(start)
 
+cal = ql.WeekendsOnly()
+start = calendar.advance(start, -1, ql.Days)
 while not calendar.isBusinessDay(start):
     start = calendar.advance(start, -1, ql.Days)
 
