@@ -118,7 +118,7 @@ class LoanCalculatorServer(XerenityFunctionServer):
 
             payment = self.loan.generate_rates_ibr(
                 value_date=value_date,
-                curve=curve,
+                curve=curve["objeto"],
                 tipo_de_cobro=self.loan.days_count,
                 periodicidad_tasa='MV',
                 grace_type=self.loan.grace_type,
