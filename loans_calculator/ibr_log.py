@@ -1,3 +1,5 @@
+
+# %%
 import sys
 sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 import QuantLib as ql
@@ -5,15 +7,18 @@ from datetime import datetime
 from utilities.colombia_calendar import calendar_colombia
 from swap_functions.main import full_ibr_curve_creation
 from loans_calculator.loan_structure import Loan
-from db_call.db_call import get_last_n_banrep_ibr_1m_nom, get_last_n_banrep_ibr_3m_nom, get_last_n_banrep_ibr_6m_nom, \
-    get_banrep_16
+from db_call.db_call import get_last_banrep
 
-from db_call.db_call import get_banrep_19, get_ibr_cluster_table
+from db_call.db_call import get_ibr_cluster_table,get_last_banrep
 
-db_info = {'ibr_cluster_table': get_ibr_cluster_table(), 'ibr_on': get_banrep_19(), 'ibr_1m': get_banrep_16()}
-period_to_curve = {'SV': get_last_n_banrep_ibr_6m_nom(), 'TV': get_last_n_banrep_ibr_3m_nom(n=365 * 5),
-                   'MV': get_last_n_banrep_ibr_1m_nom(), 'ibr_cluster_table': get_ibr_cluster_table(),
-                   'ibr_on': get_banrep_19(), 'ibr_1m': get_banrep_16()}
+db_info = {'ibr_cluster_table': get_ibr_cluster_table(), 
+           'ibr_on': get_last_banrep("Indicador Bancario de Referencia (IBR) overnight, nominal",0)/100,
+           'ibr_1m': get_last_banrep("Indicador Bancario de Referencia (IBR) 1 Mes, nominal",365*5).data[0]['valor']/100}
+period_to_curve = {'SV': get_last_banrep("Indicador Bancario de Referencia (IBR) 6 Meses, nominal",365*5).data,
+                   'TV': get_last_banrep("Indicador Bancario de Referencia (IBR) 3 Meses, nominal",365*5).data,
+                   'MV': get_last_banrep("Indicador Bancario de Referencia (IBR) 1 Mes, nominal",365*5).data, 'ibr_cluster_table': get_ibr_cluster_table(),
+                   'ibr_on': get_last_banrep("Indicador Bancario de Referencia (IBR) overnight, nominal",0)/100, 
+                   'ibr_1m': get_last_banrep("Indicador Bancario de Referencia (IBR) 1 Mes, nominal",365*5).data[0]['valor']/100}
 
 
 
@@ -32,3 +37,5 @@ ibr_loan = Loan(interest_rate=5, periodicity='Mensual', number_of_payments=24, s
                 original_balance=10000, rate_type='IBR', db_info=period_to_curve)
 
 ibr_loan.generate_rates_ibr(value_date=value_date, curve=curve, tipo_de_cobro='por_dias_360', periodicidad_tasa='MV')
+
+# %%

@@ -8,6 +8,7 @@ from swap_functions.ibr_quantlib_details import ibr_quantlib_det,ibr_overnight_i
 from global_definitions.dates_mgt import  dates_convention_to_ql
 import pandas as pd
 import QuantLib as ql
+from utilities.colombia_calendar import calendar_colombia
 
 from datetime import datetime,date
 #xty = Xerenity(
@@ -27,6 +28,9 @@ from datetime import datetime,date
 
 # Create the helpers ( qutes) in the quantlib library.
 #Input a dictionary with the keys rate, tenor and tenor_unit
+
+calendar_colombia=calendar_colombia()
+
 def ibr_swaps_quotes(ibr_quotes):
 
     OIS_helpers = []
@@ -55,18 +59,26 @@ def fwd_rates_generation(curve,start_date,inverval_tenor=3,interval_period='m'):
     dates = []
     forward_rates = []
     # Loop through 1-year steps up to 10 years (120 months)
-    for i in range(1, 119):
+    first_date = datetime_to_ql(start_date) 
+    
+    for i in range(1, 365*5):
         try:
         # Calculate the forward rate for the current step
             # i=1
             #interval_period='m'
             #inverval_tenor=3
 
-            first_date = datetime_to_ql(start_date) + ql.Period(i, dates_convention_to_ql[interval_period])
+            
+            
             end_date = first_date + ql.Period(inverval_tenor, dates_convention_to_ql[interval_period])
+            
             forward_rate = curve.forwardRate(first_date, end_date, ql.Actual360(), ql.Simple).rate()
             dates.append(first_date)
             forward_rates.append(forward_rate)
+            
+            first_date = calendar_colombia.advance(datetime_to_ql(start_date), i, ql.Days)
+   
+            #first_date = datetime_to_ql(start_date) + ql.Period(i, ql.Days)
             # Print the result
             #print(f"1-month {i/12} year forward rate: {forward_rate:.4%}")
         except Exception as e:     

@@ -16,9 +16,10 @@ class full_ibr_curve_creation:
     def is_past_noon(self):
         current_time = datetime.now().time()
         noon_time = time(12, 0, 0)  # Noon time
-        return current_time >= noon_time
+        return False  # current_time >= noon_time
 
-    def __init__(self, desired_date_valuation=ql.Date.todaysDate(), calendar=calendar_colombia(),
+    def __init__(self, desired_date_valuation=ql.Date.todaysDate(),
+                 calendar=calendar_colombia(),
                  day_to_avoid_fwd_ois=7, db_info=None):
         self.desired_date = desired_date_valuation
         self.calendar = calendar
@@ -58,7 +59,10 @@ class full_ibr_curve_creation:
 
         # Filtramos el Query por los parametros determinados.
         ibr_cluster_mean = ibr_mean_query(
-            ibr_data, self.init_date, self.final_date, day_to_avoid_fwd_swaps=self.day_to_avoid_fwd_ois)
+            ibr_data,
+            self.init_date,
+            self.final_date,
+            day_to_avoid_fwd_swaps=self.day_to_avoid_fwd_ois)
         # creacion del directorio para llamarlos como una curva. Esta funcion devuelve in df.
 
         ibr_query = ibr_mean_query_to_dictionary(ibr_cluster_mean, 'm')
@@ -67,11 +71,12 @@ class full_ibr_curve_creation:
         OIS_helpers = ibr_swaps_quotes(ibr_query.to_dict(orient='records'))
 
         # Variable para ponerle una maduracion a los depositos.
-        OIS_helpers.append(depo_helpers_ibr(
-            self.db_info['ibr_1m'], days_to_on, ql.Months))
-
+        OIS_helpers.append(depo_helpers_ibr(self.db_info['ibr_1m'], 1, ql.Months))
+        OIS_helpers.append(depo_helpers_ibr(self.db_info['ibr_3m'], 3, ql.Months))
+        # OIS_helpers.append(depo_helpers_ibr(self.db_info['ibr_6m'], 6, ql.Months))
+        # OIS_helpers.append(depo_helpers_ibr(self.db_info['ibr_12m'], 12, ql.Months))
         # Crendo el objeto curva en la salida.
         # curve= crear_objeto_curva_ibr(OIS_helpers)
-        return crear_objeto_curva_ibr(OIS_helpers)
+        return {"objeto": crear_objeto_curva_ibr(OIS_helpers), "info": OIS_helpers}
 
 # %%

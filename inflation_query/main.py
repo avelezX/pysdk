@@ -10,7 +10,7 @@ from inflation_query.uvr_calc import calculo_serie_uvr
 from inflation_query.Inflation_query import implied_inflation_calc
 
 
-from db_call.db_call import get_last_banrep_8,get_tes_table,get_last_banrep_1,get_last_cpi
+from db_call.db_call import get_tes_table,get_last_cpi,get_last_banrep
 
 today = datetime(2024, 1, 31)
 
@@ -18,7 +18,9 @@ xty = Xerenity(
     username=os.getenv('XTY_USER'),
     password=os.getenv('XTY_PWD'),
 )
-db_uvr_call={'uvr':get_last_banrep_8(),'cbr':get_last_banrep_1(),'tes_table':get_tes_table(),'last_cpi':get_last_cpi()}
+db_uvr_call={'uvr':get_last_banrep("Unidad de Valor Real (UVR)",n=365*2).data,
+             'cbr':get_last_banrep("Tasa de Politica Monetaria",0).data[0]['valor'],
+             'tes_table':get_tes_table(),'last_cpi':get_last_cpi()}
 
 # Calculate the vectors
 
@@ -57,3 +59,5 @@ xty.session.table('inflacion_implicita').insert(cpi.to_dict(orient='records')).e
 # total_cpi_yoy_plot(total_cpi_yoy=cpi['total_cpi_yoy'],today=today)
 # uvr_plot(uvr_proyec,today=today.date())
 # uvr_image(uvr_proyec,today=today.date())
+
+# %%

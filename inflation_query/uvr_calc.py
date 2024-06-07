@@ -42,7 +42,7 @@ def calculo_serie_uvr(cpi_serie=None,uvr_db=None):
             print(current_date)
     # uvr.dropna().to_csv('uvr_.csv')
     # uvr = uvr.interpolate(method='linear')
-    uvr=uvr.sort_values(by='fecha')
+    #uvr=uvr.sort_values(by='fecha')
       
     # uvr.reset_index(inplace=True)
     # uvr.rename(columns={'index': 'fecha'}, inplace=True)

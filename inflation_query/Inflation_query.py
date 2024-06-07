@@ -1,4 +1,4 @@
-from db_call.db_call import get_last_banrep_1, get_last_cpi, get_tes_table, get_last_cpi_lag
+from db_call.db_call import get_last_cpi, get_tes_table, get_last_cpi_lag,get_last_banrep
 from bond_functions.tes_quant_lib_details import depo_helpers, tes_quantlib_det
 import matplotlib.pyplot as plt
 import seaborn as sns
