@@ -20,7 +20,8 @@ class LoanCalculatorServer(XerenityFunctionServer):
             'periodicity': [str],
             'number_of_payments': [float, int],
             'start_date': [str],
-            'original_balance': [float, int]
+            'original_balance': [float, int],
+
         }
 
         body_fields = set(expected).difference(body.keys())
@@ -35,6 +36,10 @@ class LoanCalculatorServer(XerenityFunctionServer):
         if not self.body['periodicity'] in Loan.number_to_user.keys():
             raise XerenityError(message="Periodicity must be {}".format(",".join(Loan.number_to_user.keys())), code=400)
 
+        if 'days_count' in self.body:
+            if self.body['days_count'] not in Loan.count_days_values:
+                raise XerenityError(message="Conteo de día debe ser {}".format(",".join(Loan.count_days_values)),
+                                    code=400)
         try:
             # 2024-01-01
             self.body['start_date'] = datetime.strptime(body['start_date'], '%Y-%m-%d')
@@ -113,7 +118,7 @@ class LoanCalculatorServer(XerenityFunctionServer):
             payment = self.loan.generate_rates_ibr(
                 value_date=value_date,
                 curve=curve,
-                tipo_de_cobro='por_dias_360',
+                tipo_de_cobro=self.loan.days_count,
                 periodicidad_tasa='MV'
             )
 
