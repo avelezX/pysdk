@@ -29,7 +29,8 @@ rate_type='IBR'
 days_count='por_dias_360'
 grace_type='capital'
 grace_period=12
-min_period_rate=14.5
+min_period_rate=13.6171452
+
 
 SV=get_last_banrep("Indicador Bancario de Referencia (IBR) 6 Meses, nominal",365*5).data
 initial_date='2024-06-06 00:00:00'
@@ -58,7 +59,7 @@ calc=Loan(interest_rate=interest_rate,
           grace_type=grace_type,
           grace_period=grace_period,
           db_info=db_info,
-          min_period_rate=14.5
+          min_period_rate=min_period_rate
           )
 
 calc.rate_type = 'IBR'

@@ -12,7 +12,7 @@ class Loan_test:
     number_to_user = {'Anual': 1, 'Semestral': 0.5, 'Trimestral': 1 / 4, 'Bimensual': 1 / 6, 'Mensual': 1 / 12}
 
     # List of acceptable methods for counting days
-    count_days_values = ['por_dias_360', 'por_dias_36   5', 'por_periodo']
+    count_days_values = ['por_dias_360', 'por_dias_365', 'por_periodo']
 
     def __init__(self,
                  interest_rate,
