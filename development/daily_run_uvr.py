@@ -1,7 +1,8 @@
 
 # %%
 import sys
-sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+#sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+sys.path.append("/Users/andre/Documents/xerenity/pysdk")
 import os
 import pandas as pd
 from src.xerenity.xty import Xerenity
@@ -24,7 +25,7 @@ xty = Xerenity(
 start_date=ql.Date.todaysDate()
 
 #############################################
-####### Generacion de UBR  ######
+####### Generacion de UVR  ######
 #############################################
 
 today =start_date #datetime(202, 1, 31)

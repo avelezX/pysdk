@@ -40,7 +40,7 @@ class full_ibr_curve_creation:
         #TODO !!! Quitar el Quedamo de estos dias. 
         else:
             init_date = ql_to_datetime(
-                calendar.advance(self.desired_date, -6, ql.Days))
+                calendar.advance(self.desired_date, 0, ql.Days))
         # En la Tabla de IBRS hasta que dia se quiere traer informacion.
         # datetime(2024,1,22).date()
         final_date = ql_to_datetime(self.desired_date)

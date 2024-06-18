@@ -1,4 +1,3 @@
-
 import sys
 #sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 sys.path.append("/Users/andre/Documents/xerenity/pysdk")
@@ -19,22 +18,22 @@ import json
 
 
 periodicity="Mensual"
-interest_rate=6
+interest_rate=3.51
 periodicity="Mensual"
-number_of_payments=22
-datetime_date="2024-04-22"
+number_of_payments=12
+datetime_date="2022-04-12"
 start_date=datetime.strptime(datetime_date, '%Y-%m-%d')
-original_balance=2000*1000000
+original_balance=600*1000000
 rate_type='IBR'
-days_count='por_dias_360'
-grace_type='capital'
-grace_period=12
-min_period_rate=13.6171452
+days_count='por_dias_365' #'por_periodo'#'por_dias_360'
+grace_type=None
+grace_period=None
+min_period_rate=12
 
 
 SV=get_last_banrep("Indicador Bancario de Referencia (IBR) 6 Meses, nominal",365*5).data
-initial_date='2024-06-06 00:00:00'
-final_date='2024-06-07 19:17:34'
+initial_date='2024-06-17 00:00:00'
+final_date='2024-06-17 19:17:34'
 
 ibr_cluster_table=get_ibr_cluster_table(initial_date=initial_date,final_date=final_date)
 TV=get_last_banrep("Indicador Bancario de Referencia (IBR) 3 Meses, nominal",365*5).data

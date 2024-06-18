@@ -1,7 +1,8 @@
 # %%
 import sys
 
-sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+#sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+sys.path.append("/Users/andre/Documents/xerenity/pysdk")
 import os
 import pandas as pd
 from src.xerenity.xty import Xerenity
@@ -22,8 +23,8 @@ xty = Xerenity(
 # Necesarias para la creacion diaria de las curvas. 
 
 
-initial_date = '2024-05-13 00:00:00'
-final_date = '2024-05-24 19:17:34'
+initial_date = '2024-06-11 00:00:00'
+final_date = '2024-06-12 19:17:34'
 
 ibr_cluster_table = get_ibr_cluster_table(initial_date=initial_date, final_date=final_date)
 db_info = {'ibr_cluster_table': get_ibr_cluster_table(initial_date=initial_date, final_date=final_date),

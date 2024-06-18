@@ -1,7 +1,8 @@
 # %%
 import sys
-
+#sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 sys.path.append("/Users/andre/Documents/xerenity/pysdk")
+
 from utilities.date_functions import datetime_to_ql, ql_to_datetime
 import QuantLib as ql
 import pandas as pd
@@ -181,8 +182,8 @@ class Loan:
         result_data['rate'] = [None] * len(dates)
 
         result_df = pd.DataFrame(result_data)
-        self.interest_rate = self.interest_rate * number_to_user[self.periodicity] * 12
-        self.min_period_rate = self.min_period_rate * number_to_user[self.periodicity] * 12 
+        self.interest_rate = self.interest_rate 
+        self.min_period_rate = self.min_period_rate 
         result_df['spread'] = self.interest_rate
         result_df['principal'] = 0  # self.original_balance / self.capital_payments
 
@@ -229,7 +230,7 @@ class Loan:
                 day_count = ql.ActualActual(ql.ActualActual.ISDA)
                 actual_days = day_count.dayCount(date, date + ql.Period(int(12 * p_pagos), ql.Months))
 
-                factor_cobro = actual_days * (result_df.at[i, 'rate_tot'] ) / 365
+                factor_cobro = actual_days * (result_df.at[i, 'rate_tot']) / 365
 
             if tipo_de_cobro == 'por_periodo':
                 tasa_en_periodo = periodicidad_tasa_number[periodicidad_tasa] * (

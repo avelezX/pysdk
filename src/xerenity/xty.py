@@ -1,4 +1,7 @@
 import os
+import sys
+#sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+sys.path.append("/Users/andre/Documents/xerenity/pysdk")
 from supabase import Client
 from supabase import create_client
 from supabase.lib.client_options import ClientOptions

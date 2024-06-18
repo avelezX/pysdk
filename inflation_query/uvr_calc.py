@@ -7,7 +7,8 @@ from src.xerenity.xty import Xerenity
 from inflation_query.Inflation_query import implied_inflation_calc
 import os
 import sys
-sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+#sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+sys.path.append("/Users/andre/Documents/xerenity/pysdk")
 xty = Xerenity(
     username=os.getenv('XTY_USER'),
     password=os.getenv('XTY_PWD'),

@@ -1,8 +1,11 @@
+import sys
+#sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+sys.path.append("/Users/andre/Documents/xerenity/pysdk")
 from db_call.db_call import get_last_cpi, get_tes_table, get_last_cpi_lag,get_last_banrep
 from bond_functions.tes_quant_lib_details import depo_helpers, tes_quantlib_det
 import matplotlib.pyplot as plt
-import seaborn as sns
-import plotly.graph_objects as go
+#import seaborn as sns
+#import plotly.graph_objects as go
 import pandas as pd
 import QuantLib as ql
 import datetime as dt
@@ -13,8 +16,7 @@ from dotenv import load_dotenv
 from src.data_source.tes.tes import Tes
 from src.xerenity.xty import Xerenity
 import os
-import sys
-sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+
 load_dotenv()
 print(os.getenv('XTY_USER'))
 xty = Xerenity(
