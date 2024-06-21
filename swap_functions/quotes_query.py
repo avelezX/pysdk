@@ -19,3 +19,6 @@ def ibr_mean_query_to_dictionary(ibr_query, tenor_unit):
     ibr_query = ibr_query.reset_index()
     ibr_query.rename(columns={'month_diff_effective_expiration': 'tenor'}, inplace=True)
     return ibr_query.reset_index()
+
+def ibr_query():
+    pass

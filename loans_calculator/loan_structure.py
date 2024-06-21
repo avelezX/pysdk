@@ -1,6 +1,7 @@
 # %%
 import sys
-#sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+
+# sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 sys.path.append("/Users/andre/Documents/xerenity/pysdk")
 
 from utilities.date_functions import datetime_to_ql, ql_to_datetime
@@ -42,11 +43,12 @@ class Loan:
         Returns:
         - pd.DataFrame: A DataFrame containing the cash flow details.
         """
-        user_to_spanish_periodo = {'Anual': 'SV',
-                                   'Semestral': 'SV',
-                                   'Trimestral': 'TV',
-                                   'Bimensual': 'MV',
-                                   'Mensual': 'MV'}
+        user_to_spanish_periodo = {
+            'Anual': 'ibr_12m',
+            'Semestral': 'ibr_6m',
+            'Trimestral': 'ibr_3m',
+            'Mensual': 'ibr_1m'
+        }
 
         self.periodicity = periodicity
         self.periodicity_spanish = user_to_spanish_periodo[self.periodicity]
@@ -56,7 +58,7 @@ class Loan:
         self.start_date = start_date
         self.start_date_ql = datetime_to_ql(self.start_date)
         self.rate_type = rate_type
-        self.db_info = db_info
+        self.db_info = pd.DataFrame(db_info)
         self.days_count = days_count
         self.grace_type = grace_type
         self.grace_period = grace_period if grace_period is not None else 0
@@ -115,7 +117,7 @@ class Loan:
             if i < self.grace_period_interest:
                 interest_payment.append(0)
                 acumulated_interest += current_balance * (
-                            self.interest_rate / 100 * self.number_to_user[self.periodicity])
+                        self.interest_rate / 100 * self.number_to_user[self.periodicity])
             else:
                 interest_payment.append(
                     current_balance * (self.interest_rate / 100 * self.number_to_user[self.periodicity]))
@@ -147,23 +149,24 @@ class Loan:
 
         return cf_table
 
-    def generate_rates_ibr(self,
-                           value_date,
-                           curve):
+    def generate_rates_ibr(self, value_date, curve):
         # Value date debe ser el dia actual, para que la curva IBR coincida con la valoracion
         # Curve deberia ser una curva de IBR generada con la valoracion de la curva actual
         # Tipo de cobro depende del banco que emite el credito.
         # Periodicidad tasa "SV", "TV"o "MV"
-        grace_type = self.grace_type
-        grace_period = self.grace_period
+
         periodicidad_tasa = self.periodicity_spanish
-        # grace_type puede ser None o "capital" "interes" "ambos"
-        # grace_period puede ser None o un numero entero
 
         tipo_de_cobro = self.days_count
 
         number_to_user = {'Anual': 1, 'Semestral': 0.5, 'Trimestral': 1 / 4, 'Bimensual': 1 / 6, 'Mensual': 1 / 12}
-        periodicidad_tasa_number = {'SV': 0.5, 'TV': 1 / 4, 'MV': 1 / 12}
+
+        periodicidad_tasa_number = {
+            'ibr_6m': 0.5,
+            'ibr_3m': 1 / 4,
+            'ibr_1m': 1 / 12,
+            'ibr_12m': 1
+        }
 
         periods = list(range(1, self.number_of_payments + 1))
         date_list = []
@@ -172,18 +175,21 @@ class Loan:
             date_list.append(
                 start_date_ql + ql.Period(int((i + 1) * (12 * number_to_user[self.periodicity])), ql.Months))
         # return dates
+
         dates = date_list
-        tasas = pd.DataFrame(self.db_info[periodicidad_tasa])  # pd.DataFrame(get_last_n_banrep_ibr_1m_nom())
+        tasas = pd.DataFrame(self.db_info[periodicidad_tasa])
         # Convert 'fecha' column to datetime if it's not already in datetime format
-        tasas['date'] = pd.to_datetime(tasas['fecha'])
+        tasas['date'] = pd.to_datetime(self.db_info['fecha'])
+
+        print(tasas)
         # Create a new DataFrame with 'your_date_list'
         result_data = {'date': dates}
         # Create an empty 'tasa' column in the result DataFrame
         result_data['rate'] = [None] * len(dates)
 
         result_df = pd.DataFrame(result_data)
-        self.interest_rate = self.interest_rate 
-        self.min_period_rate = self.min_period_rate 
+        self.interest_rate = self.interest_rate
+        self.min_period_rate = self.min_period_rate
         result_df['spread'] = self.interest_rate
         result_df['principal'] = 0  # self.original_balance / self.capital_payments
 
@@ -195,7 +201,7 @@ class Loan:
             if ql_to_datetime(date - moving_period) <= value_date:
                 closest_date = tasas['date'].sub(pd.Timestamp(ql_to_datetime(date - moving_period))).abs().idxmin()
                 # Assign the corresponding 'tasa' value to the result DataFrame
-                closest_value = tasas.at[closest_date, 'valor']
+                closest_value = tasas.at[closest_date, periodicidad_tasa]
                 result_df.at[i, 'rate'] = closest_value
                 if self.min_period_rate == None:
                     result_df.at[i, 'rate_tot'] = result_df.at[i, 'rate'] + self.interest_rate
@@ -234,7 +240,7 @@ class Loan:
 
             if tipo_de_cobro == 'por_periodo':
                 tasa_en_periodo = periodicidad_tasa_number[periodicidad_tasa] * (
-                        result_df.at[i, 'rate_tot'] )
+                    result_df.at[i, 'rate_tot'])
                 factor_cobro = (1 + tasa_en_periodo) ** (
                         periodicidad_tasa_number[periodicidad_tasa] / self.number_to_user[self.periodicity]) - 1
 
@@ -253,7 +259,7 @@ class Loan:
                     result_df.loc[i + 1, 'beginning_balance'] = result_df.at[i, 'ending_balance']
             else:
                 result_df.at[i, 'ending_balance'] = result_df.loc[i, 'beginning_balance'] - (
-                            self.original_balance / self.capital_payments)
+                        self.original_balance / self.capital_payments)
                 result_df.at[i, 'principal'] = self.original_balance / self.capital_payments
                 if i == (len(dates) - 1):
                     pass

@@ -87,33 +87,26 @@ class LoanCalculatorServer(XerenityFunctionServer):
         Function to calculate cashflow with ibr data
         :return:
         """
+
+        """
         try:
 
             self.loan.rate_type = 'IBR'
-            today = datetime.today().date()
-            start = ql.Date(today.day, today.month, today.year)
-            ql_today = ql.Date(today.day, today.month, today.year)
-            calendar = calendar_colombia()
-            start = calendar.advance(start, -1, ql.Days)
-            depth_search = 8
 
-            while not calendar.isBusinessDay(start) and depth_search >= 0:
-                start = calendar.advance(start, -1, ql.Days)
-                depth_search = depth_search - 1
+            value_date_db = self.loan.db_info['fecha'][0]
 
-            if depth_search == 0:
-                print("No business day found in {} days".format(depth_search))
-                start = ql_today
+            value_date = datetime.strptime(value_date_db, '%Y-%m-%dT%H:%M:%S')
+            value_date_ql = ql.Date(value_date.day, value_date.month, value_date.year)
 
-            value_date = datetime(year=start.year(), month=start.month(), day=start.dayOfMonth())
 
             curve_details = full_ibr_curve_creation(
-                desired_date_valuation=ql.Date(value_date.day, value_date.month, value_date.year),
+                desired_date_valuation=value_date_ql,
                 calendar=calendar_colombia(),
                 day_to_avoid_fwd_ois=7,
                 db_info=self.loan.db_info
             )
 
+            print(self.loan.db_info)
             curve = curve_details.crear_curva(days_to_on=1)
 
             payment = self.loan.generate_rates_ibr(
@@ -131,5 +124,38 @@ class LoanCalculatorServer(XerenityFunctionServer):
                 return responseHttpOk(body={"cash_flow": str(payment)})
 
         except Exception as er:
-
+            print(er)
             raise XerenityError(message=str(er), code=400)
+        """
+
+        self.loan.rate_type = 'IBR'
+
+        value_date_db = self.loan.db_info['fecha'][0]
+
+        value_date = datetime.strptime(value_date_db, '%Y-%m-%dT%H:%M:%S')
+        value_date_ql = ql.Date(value_date.day, value_date.month, value_date.year)
+
+        curve_details = full_ibr_curve_creation(
+            desired_date_valuation=value_date_ql,
+            calendar=calendar_colombia(),
+            day_to_avoid_fwd_ois=7,
+            db_info=self.loan.db_info
+        )
+
+        print(self.loan.db_info)
+        curve = curve_details.crear_curva(days_to_on=1)
+
+        payment = self.loan.generate_rates_ibr(
+            value_date=value_date,
+            curve=curve["objeto"]
+        )
+
+        if type(payment) is pd.DataFrame:
+
+            payment['date'] = payment['date'].apply(str)
+
+            return responseHttpOk(body=payment.to_dict(orient="records"))
+
+        else:
+            return responseHttpOk(body={"cash_flow": str(payment)})
+
