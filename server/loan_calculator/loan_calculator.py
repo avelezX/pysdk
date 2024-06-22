@@ -88,16 +88,13 @@ class LoanCalculatorServer(XerenityFunctionServer):
         :return:
         """
 
-        """
         try:
-
             self.loan.rate_type = 'IBR'
 
             value_date_db = self.loan.db_info['fecha'][0]
 
             value_date = datetime.strptime(value_date_db, '%Y-%m-%dT%H:%M:%S')
             value_date_ql = ql.Date(value_date.day, value_date.month, value_date.year)
-
 
             curve_details = full_ibr_curve_creation(
                 desired_date_valuation=value_date_ql,
@@ -106,8 +103,7 @@ class LoanCalculatorServer(XerenityFunctionServer):
                 db_info=self.loan.db_info
             )
 
-            print(self.loan.db_info)
-            curve = curve_details.crear_curva(days_to_on=1)
+            curve = curve_details.crear_curva(db_info=self.loan.db_info)
 
             payment = self.loan.generate_rates_ibr(
                 value_date=value_date,
@@ -122,40 +118,6 @@ class LoanCalculatorServer(XerenityFunctionServer):
 
             else:
                 return responseHttpOk(body={"cash_flow": str(payment)})
-
         except Exception as er:
             print(er)
             raise XerenityError(message=str(er), code=400)
-        """
-
-        self.loan.rate_type = 'IBR'
-
-        value_date_db = self.loan.db_info['fecha'][0]
-
-        value_date = datetime.strptime(value_date_db, '%Y-%m-%dT%H:%M:%S')
-        value_date_ql = ql.Date(value_date.day, value_date.month, value_date.year)
-
-        curve_details = full_ibr_curve_creation(
-            desired_date_valuation=value_date_ql,
-            calendar=calendar_colombia(),
-            day_to_avoid_fwd_ois=7,
-            db_info=self.loan.db_info
-        )
-
-        print(self.loan.db_info)
-        curve = curve_details.crear_curva(days_to_on=1)
-
-        payment = self.loan.generate_rates_ibr(
-            value_date=value_date,
-            curve=curve["objeto"]
-        )
-
-        if type(payment) is pd.DataFrame:
-
-            payment['date'] = payment['date'].apply(str)
-
-            return responseHttpOk(body=payment.to_dict(orient="records"))
-
-        else:
-            return responseHttpOk(body={"cash_flow": str(payment)})
-
