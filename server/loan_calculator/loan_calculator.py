@@ -103,7 +103,7 @@ class LoanCalculatorServer(XerenityFunctionServer):
                 db_info=self.loan.db_info
             )
 
-            curve = curve_details.crear_curva(days_to_on=1)
+            curve = curve_details.crear_curva(db_info=self.loan.db_info)
 
             payment = self.loan.generate_rates_ibr(
                 value_date=value_date,
