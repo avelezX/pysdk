@@ -1,13 +1,10 @@
-# %%
 import sys
 
-# sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 sys.path.append("/Users/andre/Documents/xerenity/pysdk")
 
 from utilities.date_functions import datetime_to_ql, ql_to_datetime
 import QuantLib as ql
 import pandas as pd
-import datetime
 
 
 class Loan:
@@ -181,7 +178,6 @@ class Loan:
         # Convert 'fecha' column to datetime if it's not already in datetime format
         tasas['date'] = pd.to_datetime(self.db_info['fecha'])
 
-        print(tasas)
         # Create a new DataFrame with 'your_date_list'
         result_data = {'date': dates}
         # Create an empty 'tasa' column in the result DataFrame
@@ -203,7 +199,7 @@ class Loan:
                 # Assign the corresponding 'tasa' value to the result DataFrame
                 closest_value = tasas.at[closest_date, periodicidad_tasa]
                 result_df.at[i, 'rate'] = closest_value
-                if self.min_period_rate == None:
+                if self.min_period_rate is None:
                     result_df.at[i, 'rate_tot'] = result_df.at[i, 'rate'] + self.interest_rate
                 else:
                     result_df.at[i, 'rate_tot'] = max(result_df.at[i, 'rate'] + self.interest_rate,
@@ -214,7 +210,7 @@ class Loan:
                 next_date = date + ql.Period(int(12 * periodicidad_tasa_number[periodicidad_tasa]), ql.Months)
                 result_df.at[i, 'rate'] = curve.forwardRate(date - moving_period, next_date - moving_period,
                                                             ql.Actual360(), ql.Simple).rate() * 100
-                if self.min_period_rate == None:
+                if self.min_period_rate is None:
                     result_df.at[i, 'rate_tot'] = result_df.at[i, 'rate'] + self.interest_rate
                 else:
                     result_df.at[i, 'rate_tot'] = max(result_df.at[i, 'rate'] + self.interest_rate,
@@ -318,4 +314,3 @@ class Loan:
 
         return cf_table
 
-# %%

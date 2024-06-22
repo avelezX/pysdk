@@ -55,7 +55,7 @@ def ibr_rates(request):
     :param request:
     :return:
     """
-    """
+
     try:
         calc = LoanCalculatorServer(json.loads(request.body))
         return calc.cash_flow_ibr()
@@ -63,9 +63,6 @@ def ibr_rates(request):
         return responseHttpError(message=xerror.message, code=xerror.code)
     except Exception as e:
         return responseHttpError(message=str(e), code=400)
-    """
-    calc = LoanCalculatorServer(json.loads(request.body))
-    return calc.cash_flow_ibr()
 
 
 urlpatterns = [
