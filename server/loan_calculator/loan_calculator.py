@@ -1,4 +1,3 @@
-
 from server.main_server import XerenityFunctionServer, XerenityError, responseHttpOk
 from datetime import datetime
 import pandas as pd
@@ -9,6 +8,7 @@ from utilities.colombia_calendar import calendar_colombia
 from loan.Loan import Loan
 from loan.ibrLoan import IbrLoan
 from loan.fixedRateLoan import FixedRateLoan
+from loan.helperFunctions import QlHelperFunctions
 
 
 class LoanCalculatorServer(XerenityFunctionServer):
@@ -101,16 +101,10 @@ class LoanCalculatorServer(XerenityFunctionServer):
             value_date_db = loan.db_info['fecha'][0]
 
             value_date = datetime.strptime(value_date_db, '%Y-%m-%dT%H:%M:%S')
-            value_date_ql = ql.Date(value_date.day, value_date.month, value_date.year)
 
-            curve_details = full_ibr_curve_creation(
-                desired_date_valuation=value_date_ql,
-                calendar=calendar_colombia(),
-                day_to_avoid_fwd_ois=7,
-                db_info=loan.db_info
-            )
+            hQl = QlHelperFunctions()
 
-            curve = curve_details.crear_curva(db_info=loan.db_info)
+            curve = hQl.create_curve(db_info=loan.db_info)
 
             payment = loan.generate_cash_flow(
                 value_date=value_date,
