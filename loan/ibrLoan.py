@@ -2,7 +2,7 @@ from loan.Loan import Loan
 import QuantLib as ql
 import pandas as pd
 from utilities.date_functions import ql_to_datetime
-
+import numpy as np
 
 class IbrLoan(Loan):
     def generate_cash_flow(self, value_date=None, uvr=None):
@@ -127,4 +127,4 @@ class IbrLoan(Loan):
 
         result_df.loc[:, 'date'] = result_df['date'].apply(ql_to_datetime)
 
-        return result_df[index_rows].copy(deep=True)
+        return result_df[index_rows].replace({np.nan: None})

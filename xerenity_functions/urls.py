@@ -15,10 +15,13 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
-from django.urls import path
-from server.loan_calculator.loan_calculator import LoanCalculatorServer
-from server.main_server import XerenityError, responseHttpError
 import json
+from django.urls import path
+from server.main_server import XerenityError, responseHttpError
+
+from server.loan_calculator.loan_calculator import LoanCalculatorServer
+
+from server.ibr_quotes_servefr.ibr_quotes_calculator import IbQuotesServer
 
 
 def period_payment(request):
@@ -65,8 +68,19 @@ def ibr_rates(request):
         return responseHttpError(message=str(e), code=400)
 
 
+def fwd_rates(request):
+    try:
+        calc = IbQuotesServer(json.loads(request.body))
+        return calc.calculate()
+    except XerenityError as xerror:
+        return responseHttpError(message=xerror.message, code=xerror.code)
+    except Exception as e:
+        return responseHttpError(message=str(e), code=400)
+
+
 urlpatterns = [
     path("period_payment", period_payment, name="period_payment"),
     path("cash_flow", cash_flow, name="cash_flow"),
     path("ibr_rates", ibr_rates, name="ibr_rates"),
+    path("fwd_rates", fwd_rates, name="fwd_rates")
 ]
