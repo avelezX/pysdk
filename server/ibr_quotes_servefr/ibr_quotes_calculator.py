@@ -3,6 +3,8 @@ from implicitas.Implicitas import Implicitas
 from loan.helperFunctions import QlHelperFunctions
 from datetime import datetime
 import pandas as pd
+import QuantLib as ql
+from utilities.date_functions import ql_to_datetime
 
 
 class IbQuotesServer(XerenityFunctionServer):
@@ -10,7 +12,8 @@ class IbQuotesServer(XerenityFunctionServer):
     def __init__(self, body):
 
         expected = {
-            'interval_tenor': [int]
+            'interval_tenor': [int],
+            'start_date': [str]
         }
 
         body_fields = set(expected).difference(body.keys())
@@ -25,7 +28,6 @@ class IbQuotesServer(XerenityFunctionServer):
         if body['interval_tenor'] not in [1, 3, 6, 12]:
             raise XerenityError(message="interval_tenor must be 1,3,6,12", code=400)
 
-        self.db_info = pd.DataFrame(body['ibr_quotes'])
         self.quotes_cal: Implicitas = Implicitas(**body)
 
     def calculate(self):
@@ -37,9 +39,9 @@ class IbQuotesServer(XerenityFunctionServer):
             raise XerenityError(message=str(er), code=400)
         """
 
-        ql = QlHelperFunctions()
-        curve = ql.create_curve(db_info=self.db_info)
-        value_date = datetime.strptime(self.db_info['fecha'][0], '%Y-%m-%dT%H:%M:%S')
+        qlHelper = QlHelperFunctions()
+        curve = qlHelper.create_curve(db_info=self.quotes_cal.ibr_quotes)
+        value_date = datetime.strptime(self.quotes_cal.start_date, '%Y-%m-%dT%H:%M:%S')
 
         fwd_curve = self.quotes_cal.rates_generation(curve=curve, start_date=value_date, interval_period='m')
 
