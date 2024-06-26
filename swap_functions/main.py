@@ -13,27 +13,12 @@ from datetime import datetime, time
 
 class full_ibr_curve_creation:
 
-    def is_past_noon(self):
-        current_time = datetime.now().time()
-        noon_time = time(12, 0, 0)  # Noon time
-        return False  # current_time >= noon_time
+
 
     def __init__(self, desired_date_valuation=ql.Date.todaysDate(),
                  calendar=calendar_colombia(),
                  day_to_avoid_fwd_ois=7, db_info=None):
-        self.desired_date = desired_date_valuation
-        self.calendar = calendar
-
-        # La informacion necesaria para traer de db.
-        self.db_info = db_info
-        # Cuantos dias voy a tolerar que el execution date este a distancia del initdate. Esto para saber si es un fwd o un spot
-
-        self.day_to_avoid_fwd_ois = day_to_avoid_fwd_ois
-        # Specify the date for which you want to find the last working day before
-
-        final_date = ql_to_datetime(self.desired_date)
-
-        self.final_date = final_date
+        self.db_info=db_info
 
     def crear_curva(self, days_to_on=1):
 

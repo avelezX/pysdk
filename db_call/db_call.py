@@ -41,6 +41,8 @@ def get_last_banrep(serie_banrep,n=0):
         return_s=xty.BanRep().get_econ_data_last_n(id_serie=serie_br,n=n)
     return return_s
 
+
+
 #def get_last_banrep_1():
 #    return xty.BanRep().get_econ_data_last(id_serie=1).data[0]['valor']
 #get_last_banrep("Tasa de Politica Monetaria",0).data[0]['valor']

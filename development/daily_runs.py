@@ -1,4 +1,4 @@
-# %%
+#%%
 import sys
 
 #sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
@@ -23,34 +23,22 @@ xty = Xerenity(
 # Necesarias para la creacion diaria de las curvas. 
 
 
-initial_date = '2024-06-11 00:00:00'
-final_date = '2024-06-12 19:17:34'
 
-ibr_cluster_table = get_ibr_cluster_table(initial_date=initial_date, final_date=final_date)
-db_info = {'ibr_cluster_table': get_ibr_cluster_table(initial_date=initial_date, final_date=final_date),
-           'ibr_on': get_last_banrep("Indicador Bancario de Referencia (IBR) overnight, nominal", 0).data[0][
-                         'valor'] / 100,
-           'ibr_1m': get_last_banrep("Indicador Bancario de Referencia (IBR) 1 Mes, nominal", 365 * 5).data[0][
-                         'valor'] / 100,
-           'ibr_3m': get_last_banrep("Indicador Bancario de Referencia (IBR) 3 Meses, nominal", 365 * 5).data[0][
-                         'valor'] / 100,
-           'ibr_6m': get_last_banrep("Indicador Bancario de Referencia (IBR) 6 Meses, nominal", 365 * 5).data[0][
-                         'valor'] / 100,
-           'ibr_12m': get_last_banrep("Indicador Bancario de Referencia (IBR) 12 Meses, efectiva", 365 * 5).data[0][
-                          'valor'] / 100,
-           }
+db=pd.DataFrame(xty.read_table("ibr_quotes_curve"))
+
 
 #############################################
 ####### Generacion de la curva de IBR  ######
 #############################################
 # Creacion de la curva FWD
 # Creacion de la curva spot
-curve_details = full_ibr_curve_creation(desired_date_valuation=ql.Date.todaysDate(),
+curve_details = full_ibr_curve_creation(desired_date_valuation=ql.Date(25,6,2024),
                                         calendar=calendar_colombia(),
                                         day_to_avoid_fwd_ois=7,
-                                        db_info=db_info)
+                                        db_info=db)
 
-start_date = ql_to_datetime(curve_details.desired_date)
+start_date = ql_to_datetime(ql.Date(25,6,2024))
+
 # Creacion de la curva FWD.
 curve = curve_details.crear_curva(days_to_on=1)
 
