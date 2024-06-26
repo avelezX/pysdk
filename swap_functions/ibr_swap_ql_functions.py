@@ -61,7 +61,6 @@ def fwd_rates_generation(curve, start_date, inverval_tenor=3, interval_period='m
     dates = []
     forward_rates = []
     # Loop through 1-year steps up to 10 years (120 months)
-    first_date = datetime_to_ql(start_date)
 
     first_date = calendar_colombia.advance(datetime_to_ql(start_date), 1, ql.Days)
 
