@@ -1,5 +1,6 @@
 import QuantLib as ql
 from utilities.colombia_calendar import calendar_colombia
+from utilities.date_functions import datetime_to_ql
 
 
 class QlHelperFunctions:
@@ -53,16 +54,17 @@ class QlHelperFunctions:
 
         return depo_helper
 
-    def crear_objeto_curva_ibr(self, quotes):
-        logLinear = ql.PiecewiseLogLinearDiscount(
-            0,
-            self.ibr_quantlib_det['calendar'],
-            quotes, ql.Actual360()
-        )
+    def crear_objeto_curva_ibr(self, quotes, value_date):
 
+        #  TODO La forma de inferir el calendario colombiano interseccion calendario americano
+        logLinear = ql.PiecewiseLogLinearDiscount(
+            datetime_to_ql(value_date),
+            quotes,
+            ql.Thirty360(ql.Thirty360.BondBasis)
+        )
         return logLinear
 
-    def create_curve(self, db_info):
+    def create_curve(self, db_info, value_date):
         OIS_helpers = []
 
         if db_info is not None:
@@ -76,4 +78,4 @@ class QlHelperFunctions:
             OIS_helpers.append(self.depo_helpers_ibr(db_info['ibr_6m'][0] / 100, 6, ql.Months))
             OIS_helpers.append(self.depo_helpers_ibr(db_info['ibr_12m'][0] / 100, 12, ql.Months))
 
-        return self.crear_objeto_curva_ibr(OIS_helpers)
+        return self.crear_objeto_curva_ibr(OIS_helpers, value_date)

@@ -8,7 +8,7 @@ class IbrLoan(Loan):
     def generate_cash_flow(self, value_date=None, uvr=None):
 
         # Curve deberia ser una curva de IBR generada con la valoracion de la curva actual
-        curve = self.qlHelper.create_curve(db_info=self.db_info)
+        curve = self.qlHelper.create_curve(db_info=self.db_info,value_date=value_date)
 
         periodicidad_tasa = self.periodicity_spanish
 
@@ -53,6 +53,7 @@ class IbrLoan(Loan):
 
         index_rows = ['date', 'beginning_balance', 'rate', 'rate_tot', 'payment', 'interest', 'principal',
                       'ending_balance']
+
         for i, date in enumerate(dates):
             # Find the closest date in the 'tasas' DataFrame
             if ql_to_datetime(date - moving_period) <= value_date:
@@ -69,14 +70,17 @@ class IbrLoan(Loan):
             else:
 
                 next_date = date + ql.Period(int(12 * periodicidad_tasa_number[periodicidad_tasa]), ql.Months)
-                result_df.at[i, 'rate'] = curve.forwardRate(date - moving_period, next_date - moving_period,
-                                                            ql.Actual360(), ql.Simple).rate() * 100
+                result_df.at[i, 'rate'] = curve.forwardRate(
+                    date - moving_period,
+                    next_date - moving_period,
+                    ql.Actual360(), ql.Simple).rate() * 100
                 if self.min_period_rate is None:
                     result_df.at[i, 'rate_tot'] = result_df.at[i, 'rate'] + self.interest_rate
                 else:
                     result_df.at[i, 'rate_tot'] = max(result_df.at[i, 'rate'] + self.interest_rate,
                                                       self.min_period_rate)
             factor_cobro = 1
+
             if tipo_de_cobro == 'por_dias_360':
                 # Calculate the actual number of days between the two dates
                 # Usamos la periodicidad en pagos.
