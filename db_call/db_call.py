@@ -94,8 +94,9 @@ def get_tes_table():
 def get_last_cpi():
     return xty.CPI().lag_last(lag_value=12, canasta_id= 1)
 
-def get_last_cpi_lag():
-    return xty.CPI().lag(lag_value=12, canasta_id= 1)
+def get_last_cpi_lag(lag_value=12):
+    return xty.CPI().lag(lag_value=lag_value, canasta_id= 1)
+
 
 
 

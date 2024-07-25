@@ -1,6 +1,7 @@
 # %%
 import sys
-sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+#sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+sys.path.append("/Users/andre/Documents/xerenity/pysdk")
 from inflation_query.plots import total_cpi_mom_image, total_cpi_yoy_image, total_cpi_yoy_plot, total_cpi_mom_plot, uvr_plot, uvr_image
 import pandas as pd
 import os

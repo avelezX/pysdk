@@ -1,3 +1,8 @@
+import sys
+
+#sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+sys.path.append("/Users/andre/Documents/xerenity/pysdk")
+
 from datetime import datetime
 import QuantLib as ql
 import pandas as pd

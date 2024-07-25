@@ -1,6 +1,8 @@
 
 # %%
+
 import sys
+  
 #sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 sys.path.append("/Users/andre/Documents/xerenity/pysdk")
 import os
@@ -31,16 +33,21 @@ start_date=ql.Date.todaysDate()
 today =start_date #datetime(202, 1, 31)
 db_uvr_call={'uvr':get_last_banrep("Unidad de Valor Real (UVR)",n=365*2).data,  
              'cbr':get_last_banrep("Tasa de Politica Monetaria",0).data[0]['valor'],
-             'tes_table':get_tes_table(),'last_cpi':get_last_cpi()}
+             'tes_table':get_tes_table(),
+             'last_cpi':get_last_cpi()}
 
 # Calculate the vectors
 
-cpi = implied_inflation_calc(db_uvr_call['cbr'],db_uvr_call['tes_table'],db_uvr_call['last_cpi'])
+cpi = implied_inflation_calc(db_uvr_call['cbr'],
+            db_uvr_call['tes_table'],
+            db_uvr_call['last_cpi'])
+
+
+
+
 uvr_projec = calculo_serie_uvr(cpi_serie=cpi['total_cpi'],
                                uvr_db=db_uvr_call['uvr'])
 # Assuming uvr_projec is already defined and contains your data
-
-import pandas as pd
 
 # Assuming uvr_projec is already defined and contains your data
 

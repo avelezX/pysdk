@@ -10,7 +10,7 @@ from utilities.date_functions import ql_to_datetime
 import datetime as dt
 import QuantLib as ql
 import pandas as pd
-import plotly.graph_objects as go
+#import plotly.graph_objects as go
 import seaborn as sns
 import matplotlib.pyplot as plt
 

@@ -1,3 +1,4 @@
+# %%
 import sys
 #sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 sys.path.append("/Users/andre/Documents/xerenity/pysdk")
@@ -116,15 +117,16 @@ def implied_inflation_calc(central_bank_rate,tes_table,last_cpi):
         (1+date_df['Zero Rates'])/(1+date_df['Zero Rates_UVR'])-1)
     date_df['Date'] = date_df['Date'] - ql.Period('1m')
 
-    df = get_last_cpi_lag()
+    df = get_last_cpi_lag(lag_value=0)
 
-    df['Total'] = df['indice']
-    df['fecha'] = pd.to_datetime(df['fecha'])
+    df['Total'] = df['cpi_index']
+    df.index.name = 'fecha'
+    df['fecha'] = pd.to_datetime(df.index)
     df.set_index('fecha', inplace=True)
     df_cpi = pd.DataFrame(df['Total'].dropna())
     df_cpi.rename(columns={'Total': 'indice'}, inplace=True)
     df_cpi.set_index(pd.to_datetime(df_cpi.index.year*10000 +
-                     df_cpi.index.month*100 + 15, format='%Y%m%d'), inplace=True)
+                    df_cpi.index.month*100 + 15, format='%Y%m%d'), inplace=True)
 
     total_cpi = df_cpi['indice']
 
@@ -143,3 +145,5 @@ def implied_inflation_calc(central_bank_rate,tes_table,last_cpi):
 
 
     return {'total_cpi': total_cpi, 'total_cpi_yoy': total_cpi_yoy, 'total_cpi_monthly': total_cpi_monthly}
+
+# %%
