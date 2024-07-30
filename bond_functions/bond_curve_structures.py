@@ -1,27 +1,12 @@
-#import sys
-#sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
-import pandas as pd
 from datetime import datetime
-from utilities.colombia_calendar import calendar_colombia
-from utilities.date_functions import datetime_to_ql
-from utilities.colombia_calendar import calendar_colombia
-from bond_functions.tes_quant_lib_details import tes_quantlib_det
 import pandas as pd
 import QuantLib as ql
+from utilities.date_functions import datetime_to_ql
+from bond_functions.tes_quant_lib_details import tes_quantlib_det
 from bond_functions.bond_structure import tes_bond_structure
 
 
 
-
-
-
-
-
-
-# connection = SupabaseConnection()
-# connection.sign_is_as_user(user_name="svelezsaffon@gmail.com", password="Loquita1053778047")
-
-   
 class BondCurve:
     """
     A class for managing bond curves and performing curve fitting.
@@ -38,7 +23,7 @@ class BondCurve:
         ns_param: Perform curve fitting and return a function for optimization.
     """
 
-    def __init__(self, currency=None, country=None, bond_info_df=None, supabase=None,bond_ql_details=tes_quantlib_det):
+    def __init__(self, currency=None, country=None, bond_info_df=None, bond_ql_details=tes_quantlib_det):
         """
         Initialize the BondCurve instance.
 
@@ -50,10 +35,8 @@ class BondCurve:
         """
         self.currency = currency
         self.country = country
-        self.supabase = supabase
-        self.bond_ql_details=bond_ql_details
-        #self.calendar = ql.Colombia()
-        
+        self.bond_ql_details = bond_ql_details
+
         self.bond_info_df = bond_info_df.set_index('name')
         self.bond_dict_cop = {}
 
@@ -68,12 +51,12 @@ class BondCurve:
         self.bond_info_df['maduracion'] = pd.to_datetime(self.bond_info_df['maduracion'])
 
         for index, row in self.bond_info_df.iterrows():
-            bond = tes_bond_structure(row['emision'], row['maduracion'], row['cupon'], index, self.supabase)
+            bond = tes_bond_structure(row['emision'], row['maduracion'], row['cupon'], index)
             if row['moneda'] == self.currency:
                 self.bond_dict_cop[index] = bond
         return self.bond_dict_cop
 
-    def create_df(self, excluded_bonds=[]):
+    def create_df(self, colt_tes, excluded_bonds=[]):
         """
         Create a DataFrame with bond trading data.
 
@@ -90,89 +73,68 @@ class BondCurve:
             if key in excluded_bonds:
                 pass
             else:
-                value_df = value.db_bond_call_last_trading_day()
+                value_df = self.search_tes_by_name(col_tes=colt_tes, name=value.name)
                 cop_df.loc[key, 'volume'] = value_df['volume']
-                cop_df.loc[key, 'day'] = value_df['day']
+                cop_df.loc[key, 'day'] = datetime.strptime(
+                    value_df['operation_time'].split('T')[0], '%Y-%m-%d').timestamp()
                 cop_df.loc[key, 'close'] = value_df['close']
                 cop_df.loc[key, 'open'] = value_df['open']
                 cop_df.loc[key, 'high'] = value_df['high']
                 cop_df.loc[key, 'low'] = value_df['low']
                 cop_df.loc[key, 'maturity'] = pd.to_datetime(value.maturity).date()
         return cop_df.sort_values(by='maturity')
-    
 
-    def create_bond_helpers(self,cop_df=None,excluded_bonds=[]):
+    def search_tes_by_name(self, col_tes, name):
+
+        for t in col_tes:
+            if t['tes'] == name:
+                return t
+        return None
+
+    def create_bond_helpers(self, cop_df=None, excluded_bonds=[]):
         if cop_df is None:
-            cop_df=self.create_df(excluded_bonds=excluded_bonds)
+            cop_df = self.create_df(excluded_bonds=excluded_bonds)
 
         bond_helpers = []
-        bond_rates=cop_df['close']/100
+        bond_rates = cop_df['close'] / 100
         cop_df['ql_date_column'] = cop_df['maturity'].apply(datetime_to_ql)
-        bond_maturities=cop_df['ql_date_column']
+        bond_maturities = cop_df['ql_date_column']
 
         for r, m in zip(bond_rates, bond_maturities):
-
             termination_date = m
             schedule = ql.Schedule(self.bond_ql_details['calc_date'],
-                        termination_date,
-                        self.bond_ql_details['coupon_frequency'],
-                        self.bond_ql_details['calendar'],
-                        self.bond_ql_details['bussiness_convention'],
-                        self.bond_ql_details['bussiness_convention'],
-                        ql.DateGeneration.Backward,
-                        self.bond_ql_details['end_of_month'])
+                                   termination_date,
+                                   self.bond_ql_details['coupon_frequency'],
+                                   self.bond_ql_details['calendar'],
+                                   self.bond_ql_details['bussiness_convention'],
+                                   self.bond_ql_details['bussiness_convention'],
+                                   ql.DateGeneration.Backward,
+                                   self.bond_ql_details['end_of_month'])
 
             helper = ql.FixedRateBondHelper(ql.QuoteHandle(ql.SimpleQuote(self.bond_ql_details['face_amount'])),
-                                                self.bond_ql_details['settlement_days'],
-                                                self.bond_ql_details['face_amount'],
-                                                schedule,
-                                                [r],
-                                                self.bond_ql_details['day_count'],
-                                                self.bond_ql_details['bussiness_convention'],
-                                                )
+                                            self.bond_ql_details['settlement_days'],
+                                            self.bond_ql_details['face_amount'],
+                                            schedule,
+                                            [r],
+                                            self.bond_ql_details['day_count'],
+                                            self.bond_ql_details['bussiness_convention'],
+                                            )
             bond_helpers.append(helper)
         return bond_helpers
-    
-    def yield_curve_ql(self,calc_date,bond_helpers=None,depo_helper=None):
+
+    def yield_curve_ql(self, calc_date, bond_helpers=None, depo_helper=None):
         if bond_helpers is None:
-            bond_helpers=self.create_bond_helper()
+            bond_helpers = self.create_bond_helper()
 
         if depo_helper is None:
-            rate_helpers=bond_helpers
+            rate_helpers = bond_helpers
         else:
             rate_helpers = depo_helper + bond_helpers
-        
+
         yieldcurve = ql.PiecewiseLogCubicDiscount(calc_date,
-                                    rate_helpers,
-                                    self.bond_ql_details['day_count'])
+                                                  rate_helpers,
+                                                  self.bond_ql_details['day_count'])
         return yieldcurve
-
-
-
-
-
-        
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     # def ns_param(self, cop_df=None, excluded_bonds=[], start_date=pd.Timestamp.now().date()):
     #     """

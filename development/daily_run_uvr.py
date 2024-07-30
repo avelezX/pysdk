@@ -1,57 +1,47 @@
-
 # %%
 
 import sys
 
-
-#sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+# sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 sys.path.append("/Users/andre/Documents/xerenity/pysdk")
 import os
 import pandas as pd
 from src.xerenity.xty import Xerenity
 import QuantLib as ql
-from utilities.date_functions import ql_to_datetime
-from utilities.colombia_calendar import calendar_colombia
-from swap_functions.ibr_swap_ql_functions import fwd_rates_generation
-from swap_functions.main import full_ibr_curve_creation
-from inflation_query.uvr_calc import calculo_serie_uvr
-from inflation_query.Inflation_query import inflacion_implicita
-from db_call.db_call import get_tes_table,get_last_cpi, get_ibr_cluster_table,get_last_banrep,get_last_cpi_lag
 
+from db_call.db_call import get_tes_table, get_last_cpi, get_last_banrep, get_last_cpi_lag
 
 xty = Xerenity(
     username=os.getenv('XTY_USER'),
     password=os.getenv('XTY_PWD'),
 )
 
-
-start_date=ql.Date.todaysDate()
+start_date = ql.Date.todaysDate()
 
 #############################################
 ####### Generacion de UVR  ######
 #############################################
 
-today =start_date #datetime(202, 1, 31)
-db_uvr_call={'uvr':get_last_banrep("Unidad de Valor Real (UVR)",n=365*2).data,  
-             'cbr':get_last_banrep("Tasa de Politica Monetaria",0).data[0]['valor'],
-             'tes_table':get_tes_table(),
-             'last_cpi':get_last_cpi(),
-             'last_cpi_lag_0':get_last_cpi_lag(lag_value=0)
-             }
+today = start_date  # datetime(202, 1, 31)
+db_uvr_call = {'uvr': get_last_banrep("Unidad de Valor Real (UVR)", n=365 * 2).data,
+               'cbr': get_last_banrep("Tasa de Politica Monetaria", 0).data[0]['valor'],
+               'tes_table': get_tes_table(),
+               'last_cpi': get_last_cpi(),
+               'last_cpi_lag_0': get_last_cpi_lag(lag_value=0)
+               }
 
 # Calculate the vectors
 
 cpi_call = inflacion_implicita(
-            calc_date=ql.Date.todaysDate(),
-            central_bank_rate=db_uvr_call['cbr'],
-            tes_table=db_uvr_call['tes_table'],
-            inflation_lag_0=db_uvr_call['last_cpi_lag_0'],
-            last_cpi=db_uvr_call['last_cpi'],
-            fixed_rate_excluded_bonds=['tes_24', 'tesv_31']
-            )
+    calc_date=ql.Date.todaysDate(),
+    central_bank_rate=db_uvr_call['cbr'],
+    tes_table=db_uvr_call['tes_table'],
+    inflation_lag_0=db_uvr_call['last_cpi_lag_0'],
+    last_cpi=db_uvr_call['last_cpi'],
+    fixed_rate_excluded_bonds=['tes_24', 'tesv_31']
+)
 
-cpi=cpi_call.create_cpi_index()
-
+cpi = cpi_call.create_cpi_index()
 
 uvr_projec = calculo_serie_uvr(cpi_serie=cpi['total_cpi'],
                                uvr_db=db_uvr_call['uvr'])
@@ -63,7 +53,6 @@ uvr_projec = calculo_serie_uvr(cpi_serie=cpi['total_cpi'],
 if 'fecha' in uvr_projec.columns:
     uvr_projec['fecha'] = pd.to_datetime(uvr_projec['fecha'])
     uvr_projec.set_index('fecha', inplace=True)
-
 
 # Ensure 'valor' column is of numeric type
 uvr_projec['valor'] = pd.to_numeric(uvr_projec['valor'], errors='coerce')
@@ -118,7 +107,6 @@ cpi_filtered = cpi[cpi['fecha'] >= pd.Timestamp(2023, 3, 30)]
 xty.session.table('inflacion_implicita').delete().not_.is_(
     'fecha', 'null').execute()
 
-
 # Convert 'fecha' column to string format
 cpi_filtered['fecha'] = cpi_filtered['fecha'].dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
@@ -126,8 +114,8 @@ cpi_filtered['fecha'] = cpi_filtered['fecha'].dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 xty.session.table('inflacion_implicita').insert(cpi_filtered.to_dict(orient='records')).execute()
 
 # Creacion de la inflacion implicita en supabase.
-#xty.session.table('inflacion_implicita').insert(
- #   cpi.to_dict(orient='records')).execute()
+# xty.session.table('inflacion_implicita').insert(
+#   cpi.to_dict(orient='records')).execute()
 
 ##%
 
