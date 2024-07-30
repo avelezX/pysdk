@@ -62,27 +62,3 @@ class tes_bond_structure:
         interest = ql.FixedRateLeg(schedule, tes_quantlib_det['day_count'], [100.], [coupon_rate])
         bond = ql.Bond(0, self.calendar, start_date, interest)
         return bond
-
-    def db_bond_call(self):
-        """
-        Make a database call for financial variables.
-
-        Returns:
-            FinancialVariables: Instance for financial variables.
-        """
-
-
-        
-        return self.supabase.read_table_df(self.name)
-
-    def db_bond_call_last_trading_day(self):
-        """
-        Make a database call for the last trading day's historical prices.
-
-        Returns:
-            pd.DataFrame: Historical prices for the last trading day.
-        """
-        df = self.db_bond_call()
-        index_loc = df['day'].idxmax()
-        df = df.loc[index_loc]
-        return df

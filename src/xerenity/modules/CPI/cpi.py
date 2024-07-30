@@ -30,14 +30,31 @@ class CPI_Functions:
         Returns:
         - dict: The result of the CPI index change calculation.
         """
-        response= self.xty.session.rpc(
-            'cpi_index_change',
-            {
-                'lag_value': lag_value,
-                'id_canasta_search': canasta_id
-            }
-        ).execute().data
-        return pd.DataFrame(response['cpi_index'])
+        if lag_value==0:
+            response= self.xty.session.rpc(
+                'cpi_index_nochange',
+                {
+                    #'lag_value': lag_value,
+                    'id_canasta_search': canasta_id,
+                }
+            ).execute().data
+            df=pd.DataFrame(response)
+            df.set_index('time', inplace=True)
+            df.rename(columns={'value': 'cpi_index'}, inplace=True)
+            
+
+        else:
+            response= self.xty.session.rpc(
+                'cpi_index_change',
+                {
+                    'lag_value': lag_value,
+                    'id_canasta_search': canasta_id
+                }
+            ).execute().data
+            df=pd.DataFrame(response)
+            df.set_index('time', inplace=True)
+            df.rename(columns={'value': 'cpi_index'}, inplace=True)
+        return df
     
     def lag_last(self, lag_value: int, canasta_id: int = 1) -> APIResponse:
         """
@@ -58,7 +75,8 @@ class CPI_Functions:
             }
         ).execute()
         df = pd.DataFrame(df_inflation.data)
-        df['percentage_change'] = df['cpi_index'].apply(lambda x: x.get('percentage_change'))
+        df.rename(columns={'value': 'percentage_change'}, inplace=True)
+        #df['percentage_change'] = df['cpi_index'].apply(lambda x: x.get('percentage_change'))
         df = df.sort_index()
 
         return df['percentage_change'].iloc[-1] 

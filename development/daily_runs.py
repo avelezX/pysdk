@@ -11,8 +11,6 @@ from utilities.date_functions import ql_to_datetime
 from utilities.colombia_calendar import calendar_colombia
 from swap_functions.ibr_swap_ql_functions import fwd_rates_generation
 from swap_functions.main import full_ibr_curve_creation
-from inflation_query.uvr_calc import calculo_serie_uvr
-from inflation_query.Inflation_query import implied_inflation_calc
 from db_call.db_call import get_tes_table, get_last_cpi, get_ibr_cluster_table, get_last_banrep
 
 xty = Xerenity(
