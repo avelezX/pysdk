@@ -2,7 +2,7 @@ import pandas as pd
 import QuantLib as ql
 from inflation_query.Inflation_query import InflacinImplicita
 from server.main_server import XerenityFunctionServer, XerenityError, responseHttpOk
-
+from utilities.date_functions import ql_to_datetime
 
 class UVRPrintsServer(XerenityFunctionServer):
 
@@ -86,3 +86,38 @@ class UVRPrintsServer(XerenityFunctionServer):
 
         else:
             return responseHttpOk(body={"cash_flow": uvr_projec_interpolated.to_dict(orient='records')})
+
+    def calculate_cpi_implicit(self):
+        cpi_call = InflacinImplicita(
+            calc_date=ql.Date.todaysDate(),
+            central_bank_rate=self.cbr,
+            tes_table=pd.DataFrame(self.tes_table),
+            inflation_lag_0=pd.DataFrame(self.inflation_lag_0),
+            last_cpi=self.last_cpi,
+            fixed_rate_excluded_bonds=self.fixed_rate_excluded_bonds,
+            col_tes=self.col_tes,
+            uvr=pd.DataFrame(self.uvr)
+        )
+
+        cpi = cpi_call.create_cpi_index()
+
+        cpi = cpi['total_cpi'].reset_index().rename(columns={'index': 'fecha'})
+
+        cpi['fecha'] = pd.to_datetime(cpi['fecha'])
+
+        cpi['indice'] = cpi['indice'].pct_change(periods=12) * 100
+
+        cpi.dropna(inplace=True)
+
+        cpi_filtered = cpi[cpi['fecha'] >= ql_to_datetime(cpi_call.calc_date)]
+
+        cpi_filtered.loc[:, 'fecha'] = cpi_filtered['fecha'].dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+        if type(cpi_filtered) is pd.DataFrame:
+
+            cpi_filtered.loc[:, 'fecha'] = cpi['fecha'].apply(str)
+
+            return responseHttpOk(body=cpi_filtered.to_dict(orient="records"))
+
+        else:
+            return responseHttpOk(body={"cash_flow": cpi_filtered.to_dict(orient='records')})

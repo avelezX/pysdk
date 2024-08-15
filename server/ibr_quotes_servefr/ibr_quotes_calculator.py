@@ -40,8 +40,10 @@ class IbQuotesServer(XerenityFunctionServer):
         """
 
         qlHelper = QlHelperFunctions()
-        curve = qlHelper.create_curve(db_info=self.quotes_cal.ibr_quotes)
+
         value_date = datetime.strptime(self.quotes_cal.start_date, '%Y-%m-%dT%H:%M:%S')
+
+        curve = qlHelper.create_curve(db_info=self.quotes_cal.ibr_quotes, value_date=value_date)
 
         fwd_curve = self.quotes_cal.rates_generation(curve=curve, start_date=value_date, interval_period='m')
 

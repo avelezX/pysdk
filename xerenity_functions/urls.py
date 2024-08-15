@@ -89,10 +89,21 @@ def uvr_prints(request):
         return responseHttpError(message=str(e), code=400)
 
 
+def cpi_implicit(request):
+    try:
+        calc = UVRPrintsServer(json.loads(request.body))
+        return calc.calculate_cpi_implicit()
+    except XerenityError as xerror:
+        return responseHttpError(message=xerror.message, code=xerror.code)
+    except Exception as e:
+        return responseHttpError(message=str(e), code=400)
+
+
 urlpatterns = [
     path("period_payment", period_payment, name="period_payment"),
     path("cash_flow", cash_flow, name="cash_flow"),
     path("ibr_rates", ibr_rates, name="ibr_rates"),
     path("fwd_rates", fwd_rates, name="fwd_rates"),
-    path("uvr_prints", uvr_prints, name="uvr_prints")
+    path("uvr_prints", uvr_prints, name="uvr_prints"),
+    path("cpi_implicit", cpi_implicit, name="cpi_implicit")
 ]
