@@ -9,9 +9,11 @@ from loan.fixedRateLoan import FixedRateLoan
 
 class LoanCalculatorServer(XerenityFunctionServer):
 
-    def __init__(self, body):
+    def __init__(self, body, local_dev=False):
 
         self.body = body
+
+        self.local_dev=local_dev
 
         expected = {
             'interest_rate': [int, float],
@@ -106,9 +108,16 @@ class LoanCalculatorServer(XerenityFunctionServer):
 
                 payment['date'] = payment['date'].apply(str)
 
-                return responseHttpOk(body=payment.to_dict(orient="records"))
+                if self.local_dev:
+                    return payment.to_dict(orient="records")
+                else:
+                    return responseHttpOk(body=payment.to_dict(orient="records"))
 
             else:
-                return responseHttpOk(body={"cash_flow": str(payment)})
+                if self.local_dev:
+                    return {"cash_flow": str(payment)}
+                else:
+                    return responseHttpOk(body={"cash_flow": str(payment)})
+
         except Exception as er:
             raise XerenityError(message=str(er), code=400)

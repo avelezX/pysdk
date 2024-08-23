@@ -1,6 +1,7 @@
 import os
 import sys
-#sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
+
+# sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 sys.path.append("/Users/andre/Documents/xerenity/pysdk")
 from supabase import Client
 from supabase import create_client
@@ -15,6 +16,7 @@ from src.xerenity.modules.module_access_constants import MAC
 
 load_dotenv()
 
+
 class Xerenity:
 
     def __init__(self, username: str, password: str, auto_refresh: bool = False):
@@ -22,18 +24,16 @@ class Xerenity:
         url: str = os.getenv('XTY_URL')
         key: str = os.getenv('XTY_TOKEN')
         opts = ClientOptions(auto_refresh_token=auto_refresh).replace(schema="xerenity")
-        #self.data_name: str = table_name
+        # self.data_name: str = table_name
 
         # Connection Client Initialization
         self.session: Client = create_client(url, key, options=opts)
-        collector_bearer= os.getenv('XTY_COLLECTOR')
+        """
+        collector_bearer = os.getenv('XTY_COLLECTOR')
         self.session.postgrest.session.headers["Authorization"] = "Bearer " + collector_bearer
         print(collector_bearer)
         print("----COllector bearer----")
-        
         """
-        print(username)
-        print("------USER----")
         
         self.session.auth.sign_in_with_password(
             {
@@ -41,7 +41,8 @@ class Xerenity:
                 "password": password
             }
         )
-        """
+
+
     # ---------------------------------------
     # Subclases for Modules
     # --------------------------------------
@@ -95,7 +96,7 @@ class Xerenity:
         """
         return self.data_name
 
-    def read_table(self,table_name) -> APIResponse:
+    def read_table(self, table_name) -> APIResponse:
         """
 
         Retrieves all data from a given source
@@ -103,10 +104,9 @@ class Xerenity:
         :return:
         """
         return self.session.table(table_name=table_name).select('*').execute().data
-    
-    def read_table_df(self,table_name) -> pd.DataFrame:
+
+    def read_table_df(self, table_name) -> pd.DataFrame:
         return pd.DataFrame(self.read_table(table_name))
-    
 
     def convert_df(self, data: list) -> pd.DataFrame:
         """
@@ -147,7 +147,7 @@ class Xerenity:
 
         return df
 
-    def get_date_columns(self,table_name: str = None ) -> list:
+    def get_date_columns(self, table_name: str = None) -> list:
         """
         Returns a list of column names with datetime64[ns] data type in the DataFrame.
 
@@ -161,7 +161,7 @@ class Xerenity:
     # DF Advanced Manipulation Functions
     # --------------------------------------
 
-    def get_date_range(self,table_name: str = None ,date_column_name: str = None, initial_date: str = None,
+    def get_date_range(self, table_name: str = None, date_column_name: str = None, initial_date: str = None,
                        final_date: str = None) -> APIResponse:
         """
         Filters data based on date column and specified date range.
@@ -193,7 +193,8 @@ class Xerenity:
 
         # Perform date range filtering
         if initial_date and final_date:
-            return base_table.gte(column=filter_by, value=initial_date).lte(column=filter_by, value=final_date).order(column=filter_by, desc=True).execute()
+            return base_table.gte(column=filter_by, value=initial_date).lte(column=filter_by, value=final_date).order(
+                column=filter_by, desc=True).execute()
         elif initial_date:
             return base_table.gte(column=filter_by, value=initial_date).execute()
         elif final_date:
@@ -201,4 +202,9 @@ class Xerenity:
         else:
             return base_table.execute()
 
+    def get_ibr_data(self, loan_id, filter_date):
 
+        return self.session.rpc('ibr_cash_flow_data', {
+            "credito_id": loan_id,
+            "filter_date": filter_date
+        }).execute().data
