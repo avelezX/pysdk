@@ -113,21 +113,17 @@ def create_cashflows_and_total_value(df, value_date,convention):
     # Concatenate the new row with the existing cashflows
     cashflows = pd.concat([total_row, cashflows], ignore_index=True)
     
-    return {
+    result= {
         'cashflows': cashflows,
         'irr': calculate_irr(cashflows['date'],cashflows['payment'],convention),
         'duration':calculate_debt_duration(filtered_df)
-    }.update(info_dict)
-    
+    }
+    result.update(info_dict)
+    return result
+
 def calculate_debt_duration(df):
     """
     Calculate the duration of debt from a dataframe with cash flow information.
-
-    Parameters:
-    df (pd.DataFrame): DataFrame containing the debt schedule with columns: 'date', 'payment', 'rate'
-
-    Returns:
-    float: Duration of the debt in years
     """
     # Ensure the 'date' column is in datetime format
     df['date'] = pd.to_datetime(df['date'])
@@ -136,13 +132,13 @@ def calculate_debt_duration(df):
     discount_rate = df['rate'].mean() / 100
 
     # Time periods (in years) from the start date
-    df['t'] = (df['date'] - df['date'].iloc[0]).dt.days / 365.25
+    df.loc[:, 't'] = (df['date'] - df['date'].iloc[0]).dt.days / 365.25
 
     # Present value of each cash flow (payment) discounted at the discount rate
-    df['PV'] = df['payment'] / (1 + discount_rate) ** df['t']
+    df.loc[:, 'PV'] = df['payment'] / (1 + discount_rate) ** df['t']
 
     # Time-weighted present value
-    df['t_weighted_PV'] = df['t'] * df['PV']
+    df.loc[:, 't_weighted_PV'] = df['t'] * df['PV']
 
     # Duration calculation: sum of time-weighted PV divided by sum of PV
     duration = df['t_weighted_PV'].sum() / df['PV'].sum()
