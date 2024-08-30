@@ -60,7 +60,7 @@ def days_act_365_dt(start_date, end_date):
 
 
 
-# Function to calculate the IRR
+# Function to calculate the IRR, NOMINAL ( SYMPLE)
 def calculate_irr(dates, cashflows, convention):
     """
     Calculate the Internal Rate of Return (IRR) using the Newton-Raphson method.
