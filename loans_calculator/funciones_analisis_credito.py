@@ -15,7 +15,7 @@ from utilities.date_functions import days_30_360_ql,days_act_act_ql,days_act_365
 ###### 
 
 
-def calculate_days_from_value_date(df, value_date, convention):
+def calculate_days_from_value_date(df, value_date, start_date,convention):
     """
     Calculate the number of days between a value date and the previous and next payment dates using a specified day count convention.
 
@@ -41,9 +41,8 @@ def calculate_days_from_value_date(df, value_date, convention):
     next_payment = df[df['date'] > value_date].sort_values(by='date').head(1)
     
     # Extract the dates
-    prev_payment_date = prev_payment['date'].iloc[0] if not prev_payment.empty else None
+    prev_payment_date = prev_payment['date'].iloc[0] if not prev_payment.empty else start_date
     next_payment_date = next_payment['date'].iloc[0] if not next_payment.empty else None
-    prev_payment_interest = prev_payment['interest'].iloc[0] if not prev_payment.empty else None
     next_payment_interest = next_payment['interest'].iloc[0] if not next_payment.empty else None
     
     
@@ -71,10 +70,11 @@ def calculate_days_from_value_date(df, value_date, convention):
         'next_payment_date': next_payment_date,
         'days_to_next': days_next,
         'next_interest_payment':next_payment_interest,
-        'accrued_interest':next_payment_interest*(-1*days_prev)/(days_next-days_prev)
+        'accrued_interest':next_payment_interest*(-1*days_prev)/(days_next-days_prev),
+        'last_payment':df['date'].max()
     }
 
-def create_cashflows_and_total_value(df, value_date,convention):
+def create_cashflows_and_total_value(df, value_date,start_date,convention):
     """
     Create a DataFrame with only 'payment' and 'date' columns for payments after the value date,
     and calculate the total value of payments.
@@ -99,7 +99,7 @@ def create_cashflows_and_total_value(df, value_date,convention):
     # Create the cashflows DataFrame with 'payment' and 'date' columns
     cashflows = filtered_df[['date', 'payment']].copy()
     
-    info_dict=calculate_days_from_value_date(df, datetime_to_ql(value_date), convention)
+    info_dict=calculate_days_from_value_date(df, datetime_to_ql(value_date),start_date,convention)
     
     # Calculate the total value of payments
     total_value = filtered_df['principal'].sum()
@@ -112,16 +112,21 @@ def create_cashflows_and_total_value(df, value_date,convention):
     })
     # Concatenate the new row with the existing cashflows
     cashflows = pd.concat([total_row, cashflows], ignore_index=True)
-    
+    tenor=info_dict['last_payment']-value_date
     result= {
         'cashflows': cashflows,
         'irr': calculate_irr(cashflows['date'],cashflows['payment'],convention),
-        'duration':calculate_debt_duration(filtered_df)
+        'duration':calculate_debt_duration(filtered_df),
+        'tenor':tenor.days / 365.25,
+        'interest':df['interest'].sum(),
+        'df':df, 
+        'total_value':-total_value,
+        'principal_out_value':filtered_df['principal'].sum()
     }
     result.update(info_dict)
     return result
 
-def calculate_debt_duration(df):
+def calculate_debt_duration(df,rate=None):
     """
     Calculate the duration of debt from a dataframe with cash flow information.
     """
@@ -129,8 +134,10 @@ def calculate_debt_duration(df):
     df['date'] = pd.to_datetime(df['date'])
     
     # Assuming the discount rate is the average of the rates for the duration calculation
-    discount_rate = df['rate'].mean() / 100
-
+    if rate is None:
+        discount_rate = df['rate'].mean() / 100
+    else:
+        discount_rate=rate
     # Time periods (in years) from the start date
     df.loc[:, 't'] = (df['date'] - df['date'].iloc[0]).dt.days / 365.25
 
@@ -144,3 +151,23 @@ def calculate_debt_duration(df):
     duration = df['t_weighted_PV'].sum() / df['PV'].sum()
 
     return duration
+
+
+def merge_two_resulting_cashflows(loan0_df,loan1_df):
+    # Merge the two dataframes on the 'date' column and sum the payments
+    df_merged = pd.merge(loan0_df, loan1_df, on='date', how='outer', suffixes=('_cf1', '_cf2'))
+
+    # Fill NaN values with 0 and sum the payments
+    df_merged['total_payment'] = df_merged['payment_cf1'].fillna(0) + df_merged['payment_cf2'].fillna(0)
+
+
+    # Assuming df_merged is the result of your previous merging operation
+    df_result = df_merged[['date', 'total_payment']].copy()
+
+    # Rename the 'total_payment' column to 'payment'
+    df_result.rename(columns={'total_payment': 'payment'}, inplace=True)
+
+    # Sort by date in ascending order
+    df_result.sort_values(by='date', inplace=True)
+    
+    return df_result
