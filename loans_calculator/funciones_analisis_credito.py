@@ -120,7 +120,7 @@ def create_cashflows_and_total_value(df, value_date,start_date,convention):
         'tenor':tenor.days / 365.25,
         'interest':df['interest'].sum(),
         'df':df, 
-        'total_value':-total_value,
+        'total_value':total_value,
         'principal_out_value':filtered_df['principal'].sum()
     }
     result.update(info_dict)
