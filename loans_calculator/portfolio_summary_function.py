@@ -26,9 +26,12 @@ class LoanPortfolioAnalyzer:
         self.total_value_sum=0
         self.accrued_interest_sum=0
         self.total_loan_count=0
-        self.not_calculated_loan_count = 0
+        self.total_average_irr=0
+        self.total_average_duration=0
+        self.total_average_tenor=0
         self.total_value_fija_sum = 0
         self.total_value_ibr_sum = 0
+        self.total_average_tenor=0
         self.outdated_loan_count=0
         self.weighted_irr_fija_sum = 0
         self.weighted_irr_ibr_sum = 0
@@ -36,7 +39,12 @@ class LoanPortfolioAnalyzer:
         self.weighted_duration_sum = 0
         self.weighted_tenor_sum = 0
         self.total_weighted_irr_sum=0
+        self.total_average_irr_fija=0
+        self.total_value_ibr_sum=0
+        self.total_average_irr_ibr=0
         self.total_weighted_duration_sum=0
+        self.not_calculated_loan_ids=[]
+        self.not_calculated_loan_count = 0
 
     def retrieve_data(self):
         self.all_loans_data = self.xty.get_all_loan_data(filter_date=self.filter_date)
@@ -45,24 +53,29 @@ class LoanPortfolioAnalyzer:
         self.db_info = self.all_loans_data['db_info']
 
     def process_loans(self):
+        loan_ids_list = []
         for i, loan in enumerate(self.all_loans_data['loans']):
-            loan_temp = loan.copy()
-            loan_temp['db_info'] = self.db_info
-            calc = LoanCalculatorServer(loan_temp, local_dev=True)
-            loan_payments = calc.cash_flow_ibr()
+            try:
+                loan_temp = loan.copy()
+                loan_temp['db_info'] = self.db_info
+                calc = LoanCalculatorServer(loan_temp, local_dev=True)
+                loan_payments = calc.cash_flow_ibr()
 
-            variables = create_cashflows_and_total_value(
-                pd.DataFrame(loan_payments),
-                self.value_date,
-                datetime.strptime(loan['start_date'], '%Y-%m-%d'),
-                {'por_dias_360': '30/360', 'por_dias_365': 'actual/365'}[loan['days_count']]
-            )
+                variables = create_cashflows_and_total_value(
+                    pd.DataFrame(loan_payments),
+                    self.value_date,
+                    datetime.strptime(loan['start_date'], '%Y-%m-%d'),
+                    {'por_dias_360': '30/360', 'por_dias_365': 'actual/365'}[loan['days_count']]
+                ) 
 
-            loan_temp.pop('db_info', None)
-            self.results[f'loan_{i}'] = {
-                'variables': variables,
-                'loan_data': loan_temp
-            }
+                loan_temp.pop('db_info', None)
+                self.results[f'loan_{i}'] = {
+                    'variables': variables,
+                    'loan_data': loan_temp
+                }
+            except Exception as e:
+                print('Error en la cargada de un credito, no se tendra en cuenta')
+                self.not_calculated_loan_idsn_id = loan_temp['loan_data'].get('id')
 
     def aggregate_data(self):
 

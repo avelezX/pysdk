@@ -63,15 +63,20 @@ def calculate_days_from_value_date(df, value_date, start_date,convention):
         days_next = days_act_365_ql(value_date_ql, next_payment_date_ql) if next_payment_date_ql else None
     else:
         raise ValueError("Unsupported convention. Choose '30/360', 'actual/actual', or 'actual/365'.")
+    try:
+        accrued_interest = next_payment_interest * (-1 * days_prev) / (days_next - days_prev)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        accrued_interest = 0
 
     return {
         'previous_payment_date': prev_payment_date,
         'days_to_previous': days_prev,
         'next_payment_date': next_payment_date,
         'days_to_next': days_next,
-        'next_interest_payment':next_payment_interest,
-        'accrued_interest':next_payment_interest*(-1*days_prev)/(days_next-days_prev),
-        'last_payment':df['date'].max()
+        'next_interest_payment': next_payment_interest,
+        'accrued_interest': accrued_interest,
+        'last_payment': df['date'].max()
     }
 
 def create_cashflows_and_total_value(df, value_date,start_date,convention):
@@ -113,16 +118,73 @@ def create_cashflows_and_total_value(df, value_date,start_date,convention):
     # Concatenate the new row with the existing cashflows
     cashflows = pd.concat([total_row, cashflows], ignore_index=True)
     tenor=info_dict['last_payment']-value_date
-    result= {
-        'cashflows': cashflows,
-        'irr': calculate_irr(cashflows['date'],cashflows['payment'],convention),
-        'duration':calculate_debt_duration(filtered_df),
-        'tenor':tenor.days / 365.25,
-        'interest':df['interest'].sum(),
-        'df':df, 
-        'total_value':total_value,
-        'principal_out_value':filtered_df['principal'].sum()
-    }
+   
+    # List or dictionary to save errors
+    errors = []
+
+    result = {}
+    try:
+        irr = calculate_irr(cashflows['date'], cashflows['payment'], convention)
+    except Exception as e:
+        irr = 0
+        errors.append(f"Error calculando irr: {str(e)}")
+    result['irr'] = irr
+
+    try:
+        duration = calculate_debt_duration(filtered_df)
+    except Exception as e:
+        duration = 0
+        errors.append(f"Error calculando duration: {str(e)}")
+    result['duration'] = duration
+
+    try:
+        tenor = tenor.days / 365.25
+    except Exception as e:
+        tenor = 0
+        errors.append(f"Error calculando tenor: {str(e)}")
+    result['tenor'] = tenor
+
+    try:
+        interest = df['interest'].sum()
+    except Exception as e:
+        interest = 0
+        errors.append(f"Error calculando interest: {str(e)}")
+    result['interest'] = interest
+
+    try:
+        df_result = df
+    except Exception as e:
+        df_result = None
+        errors.append(f"Error guardando df: {str(e)}")
+    result['df'] = df_result
+
+    try:
+        total_value = total_value
+    except Exception as e:
+        total_value = 0
+        errors.append(f"Error calculando total_value: {str(e)}")
+    result['total_value'] = total_value
+
+    try:
+        principal_out_value = filtered_df['principal'].sum()
+    except Exception as e:
+        principal_out_value = 0
+        errors.append(f"Error calculando principal_out_value: {str(e)}")
+    result['principal_out_value'] = principal_out_value
+
+    # Adding cashflows separately in case of errors
+    try:
+        result['cashflows'] = cashflows
+    except Exception as e:
+        result['cashflows'] = {}
+        errors.append(f"Error guardando cashflows: {str(e)}")
+
+    # Log or print errors if any occurred
+    if errors:
+        for error in errors:
+            print(error)  # Or save this to a log file
+
+     
     result.update(info_dict)
     return result
 
