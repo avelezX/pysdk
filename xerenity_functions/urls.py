@@ -100,16 +100,13 @@ def cpi_implicit(request):
 
 
 def all_loans(request):
-    calc = AllLoanServer(json.loads(request.body))
-    return calc.calculate()
-    """
     try:
-        
+        calc = AllLoanServer(json.loads(request.body))
+        return calc.calculate()
     except XerenityError as xerror:
         return responseHttpError(message=xerror.message, code=xerror.code)
     except Exception as e:
         return responseHttpError(message=str(e), code=400)
-    """
 
 urlpatterns = [
     path("period_payment", period_payment, name="period_payment"),
