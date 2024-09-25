@@ -34,3 +34,4 @@ numpy_financial
 Django
 gunicorn
 djangorestframework
+scipy

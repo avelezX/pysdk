@@ -96,7 +96,7 @@ class IbrLoan(Loan):
                 p_pagos = self.number_to_user[self.periodicity]
                 day_count = ql.ActualActual(ql.ActualActual.ISDA)
                 actual_days = day_count.dayCount(date, date + ql.Period(int(12 * p_pagos), ql.Months))
-
+                
                 factor_cobro = actual_days * (result_df.at[i, 'rate_tot']) / 365
 
             if tipo_de_cobro == 'por_periodo':

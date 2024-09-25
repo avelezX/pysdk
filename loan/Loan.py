@@ -26,6 +26,9 @@ class Loan:
     }
 
     def __init__(self,
+                 id,
+                 owner,
+                 type,
                  interest_rate,
                  periodicity,
                  number_of_payments,
@@ -36,7 +39,13 @@ class Loan:
                  grace_type=None,
                  grace_period=None,
                  db_info=None,
-                 min_period_rate=None):
+                 min_period_rate=None,
+                 loan_identifier=None,
+                 bank=None):
+        
+        self.id=id
+        self.owner=owner
+        self.type=type
         self.periodicity = periodicity
         self.periodicity_spanish = self.user_to_spanish_periodo[self.periodicity]
         self.number_of_payments = number_of_payments
@@ -48,12 +57,14 @@ class Loan:
         self.db_info = pd.DataFrame(db_info)
         self.days_count = days_count
         self.grace_type = grace_type
-        self.grace_period = grace_period if grace_period is not None else 0
+        self.grace_period = float(grace_period) if grace_period is not None else 0
         self.grace_period_interest = self.grace_period if self.grace_type in ['interest', 'ambos'] else 0
         self.grace_period_principal = self.grace_period if self.grace_type in ['capital', 'ambos'] else 0
         self.capital_payments = self.number_of_payments - self.grace_period_principal
         self.min_period_rate = min_period_rate if min_period_rate is not None else 0
         self.qlHelper = QlHelperFunctions()
+        self.loan_identifier=loan_identifier
+        self.banco=bank
 
     def calculate_custom_period_payment(self):
         """

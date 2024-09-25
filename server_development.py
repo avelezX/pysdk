@@ -8,14 +8,13 @@ xty = Xerenity(
     password=os.getenv('XTY_PWD'),
 )
 
-ibr_cashflow = xty.get_ibr_data(
-    loan_id="c5f0df1a-b69e-4367-9802-d665afcb844b",
+all_loans_data = xty.get_all_loan_data(
     filter_date="2024-08-23"
 )
 
-open("ibr_cashflow.json", "w+").write(json.dumps(ibr_cashflow))
+open("all_loan.json", "w+").write(json.dumps(all_loans_data))
 
-calc = LoanCalculatorServer(ibr_cashflow, local_dev=True)
-loan_payments = calc.cash_flow_ibr()
+#calc = LoanCalculatorServer(ibr_cashflow, local_dev=True)
+#loan_payments = calc.cash_flow_ibr()
 
-open("loan_payments.json", "w+").write(json.dumps(loan_payments))
+#open("loan_payments.json", "w+").write(json.dumps(loan_payments))

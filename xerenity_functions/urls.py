@@ -20,9 +20,9 @@ from django.urls import path
 from server.main_server import XerenityError, responseHttpError
 
 from server.loan_calculator.loan_calculator import LoanCalculatorServer
-
 from server.ibr_quotes_servefr.ibr_quotes_calculator import IbQuotesServer
 from server.uvr_prints_server.uvr_prints_calculator import UVRPrintsServer
+from server.all_loans_server.all_loans_server import AllLoanServer
 
 
 def period_payment(request):
@@ -99,11 +99,24 @@ def cpi_implicit(request):
         return responseHttpError(message=str(e), code=400)
 
 
+def all_loans(request):
+    calc = AllLoanServer(json.loads(request.body))
+    return calc.calculate()
+    """
+    try:
+        
+    except XerenityError as xerror:
+        return responseHttpError(message=xerror.message, code=xerror.code)
+    except Exception as e:
+        return responseHttpError(message=str(e), code=400)
+    """
+
 urlpatterns = [
     path("period_payment", period_payment, name="period_payment"),
     path("cash_flow", cash_flow, name="cash_flow"),
     path("ibr_rates", ibr_rates, name="ibr_rates"),
     path("fwd_rates", fwd_rates, name="fwd_rates"),
     path("uvr_prints", uvr_prints, name="uvr_prints"),
-    path("cpi_implicit", cpi_implicit, name="cpi_implicit")
+    path("cpi_implicit", cpi_implicit, name="cpi_implicit"),
+    path("all_loans", all_loans, name="all_loans")
 ]

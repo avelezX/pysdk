@@ -21,6 +21,10 @@ class LoanCalculatorServer(XerenityFunctionServer):
             'number_of_payments': [float, int],
             'start_date': [str],
             'original_balance': [float, int],
+            'bank':[str,None],
+            'id':[str],
+            'type':[str],
+            'owner':[str]
         }
 
         body_fields = set(expected).difference(body.keys())
