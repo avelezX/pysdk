@@ -73,13 +73,6 @@ class Loan:
         """
         annual_interest_rate = self.interest_rate / 100
         periodic_interest_rate = annual_interest_rate / (1 / self.number_to_user[self.periodicity])
-
-        print('---------')
-        print(self.interest_rate)
-        print(annual_interest_rate)
-        print(periodic_interest_rate)
-        print(self.capital_payments)
-
         # Handle zero or very small interest rate case (tolerance for floating-point precision)
         tolerance = 1e-10
         if abs(periodic_interest_rate) < tolerance:
