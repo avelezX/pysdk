@@ -4,6 +4,7 @@ from inflation_query.Inflation_query import InflacinImplicita
 from server.main_server import XerenityFunctionServer, XerenityError, responseHttpOk
 from utilities.date_functions import ql_to_datetime
 
+
 class UVRPrintsServer(XerenityFunctionServer):
 
     def __init__(self, body):
@@ -28,7 +29,7 @@ class UVRPrintsServer(XerenityFunctionServer):
         self.tes_table = body['tes_table']
         self.inflation_lag_0 = body['inflation_lag_0']
         self.last_cpi = body['last_cpi']
-        self.fixed_rate_excluded_bonds = ['tes_24', 'tesv_31']
+        self.fixed_rate_excluded_bonds = ['tes_24', 'tesv_31', 'uvr_25']
         self.col_tes = body['col_tes']
 
     def calculate(self):
