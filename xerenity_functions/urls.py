@@ -44,6 +44,10 @@ def cash_flow(request):
     """
 
     try:
+
+        if len(request.body) == 0:
+            raise Exception('No se encontraron datos para este credito')
+
         calc = LoanCalculatorServer(json.loads(request.body))
         return calc.cash_flow()
     except XerenityError as xerror:
@@ -107,6 +111,7 @@ def all_loans(request):
         return responseHttpError(message=xerror.message, code=xerror.code)
     except Exception as e:
         return responseHttpError(message=str(e), code=400)
+
 
 urlpatterns = [
     path("period_payment", period_payment, name="period_payment"),

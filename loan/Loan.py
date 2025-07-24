@@ -83,6 +83,9 @@ class Loan:
             discount_factor = ((1 + periodic_interest_rate) ** self.capital_payments - 1) / (
                     periodic_interest_rate * (1 + periodic_interest_rate) ** self.capital_payments)
 
+        if abs(discount_factor) < tolerance:
+            return self.original_balance
+
         return self.original_balance / discount_factor
 
     def generate_cash_flow(self, value_date=None, uvr=None):
