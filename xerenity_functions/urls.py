@@ -73,6 +73,23 @@ def ibr_rates(request):
         return responseHttpError(message=str(e), code=400)
 
 
+def uvr_rates(request):
+    """
+
+    Entry point for ibr rates calculation
+    :param request:
+    :return:
+    """
+
+    try:
+        calc = LoanCalculatorServer(json.loads(request.body))
+        return calc.cash_flow_uvr()
+    except XerenityError as xerror:
+        return responseHttpError(message=xerror.message, code=xerror.code)
+    except Exception as e:
+        return responseHttpError(message=str(e), code=400)
+
+
 def fwd_rates(request):
     try:
         calc = IbQuotesServer(json.loads(request.body))
