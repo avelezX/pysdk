@@ -32,16 +32,24 @@ class LoanPortfolioAnalyzer:
         self.weighted_tenor_sum = 0
         self.total_weighted_irr_sum = 0
         self.total_average_irr_fija = 0
+        self.total_average_irr_uvr = 0
         self.total_value_ibr_sum = 0
+        self.total_value_uvr_sum = 0
+        self.weighted_irr_uvr_sum = 0
         self.total_average_irr_ibr = 0
         self.total_weighted_duration_sum = 0
         self.not_calculated_loan_ids = []
         self.not_calculated_loan_count = 0
+        self.total_weighted_tenor_sum = 0
+        self.db_info = None
+        self.value_date = None
+        self.db_info_uvr = None
 
     def retrieve_data(self):
         self.value_date = datetime_to_ql(datetime.strptime(self.filter_date, '%Y-%m-%d'))
         self.value_date_dt = ql_to_datetime(self.value_date)
         self.db_info = self.all_loans_data['db_info']
+        self.db_info_uvr = self.all_loans_data['db_info_uvr']
 
     def process_loans(self):
 
@@ -51,26 +59,33 @@ class LoanPortfolioAnalyzer:
         }
 
         for i, loan in enumerate(self.all_loans_data['loans']):
-            try:
-                loan_temp = loan.copy()
+            # try:
+            loan_temp = loan.copy()
+
+            if loan_temp["type"] == 'uvr':
+                loan_temp['db_info'] = self.db_info_uvr
+                calc = LoanCalculatorServer(loan_temp, local_dev=True)
+                loan_payments = calc.cash_flow_uvr()
+            else:
                 loan_temp['db_info'] = self.db_info
                 calc = LoanCalculatorServer(loan_temp, local_dev=True)
                 loan_payments = calc.cash_flow_ibr()
 
-                variables = create_cashflows_and_total_value(
-                    pd.DataFrame(loan_payments),
-                    self.value_date,
-                    datetime.strptime(loan['start_date'], '%Y-%m-%d'),
-                    map_days_count.get(loan['days_count'], '30/360')
-                )
+            variables = create_cashflows_and_total_value(
+                pd.DataFrame(loan_payments),
+                self.value_date,
+                datetime.strptime(loan['start_date'], '%Y-%m-%d'),
+                map_days_count.get(loan['days_count'], '30/360')
+            )
 
-                loan_temp.pop('db_info', None)
-                self.results[f'loan_{i}'] = {
-                    'variables': variables,
-                    'loan_data': loan_temp
-                }
-            except Exception as e:
-                print('Error en la cargada de un credito, no se tendra en cuenta')
+            loan_temp.pop('db_info', None)
+            self.results[f'loan_{i}'] = {
+                'variables': variables,
+                'loan_data': loan_temp
+            }
+        # except Exception as e:
+        #    print(e)
+        #    print('Error en la cargada de un credito, no se tendra en cuenta')
 
     def aggregate_data(self):
 
@@ -101,6 +116,8 @@ class LoanPortfolioAnalyzer:
                     'weighted_irr_fija_sum': 0,
                     'total_value_ibr': 0,
                     'weighted_irr_ibr_sum': 0,
+                    'total_value_uvr':0,
+                    'weighted_irr_uvr_sum':0,
                     'loan_ids': []
                 }
 
@@ -134,6 +151,10 @@ class LoanPortfolioAnalyzer:
                 self.total_value_ibr_sum += total_value
                 self.bank_data[bank]['total_value_ibr'] += total_value
                 self.bank_data[bank]['weighted_irr_ibr_sum'] += irr * total_value
+            elif loan_type == 'uvr':
+                self.total_value_uvr_sum += total_value
+                self.bank_data[bank]['total_value_uvr'] += total_value
+                self.bank_data[bank]['weighted_irr_uvr_sum'] += irr * total_value
 
             self.bank_data[bank]['loan_ids'].append(loan_id)
 
@@ -150,15 +171,20 @@ class LoanPortfolioAnalyzer:
             data['average_irr_ibr'] = (data['weighted_irr_ibr_sum'] / data['total_value_ibr']
                                        if data['total_value_ibr'] > 0 else None)
 
+            data['average_irr_uvr'] = (data['weighted_irr_uvr_sum'] / data['total_value_uvr']
+                                       if data['total_value_uvr'] > 0 else None)
+
     def calculate_weighted_averages(self):
         self.bank_df = pd.DataFrame.from_dict(self.bank_data, orient='index')
 
         self.total_value_sum = self.bank_df['total_value'].sum()
         self.total_value_fija_sum = self.bank_df['total_value_fija'].sum()
         self.total_value_ibr_sum = self.bank_df['total_value_ibr'].sum()
+        self.total_value_uvr_sum = self.bank_df['total_value_uvr'].sum()
 
         self.weighted_irr_fija_sum = self.bank_df['weighted_irr_fija_sum'].sum()
         self.weighted_irr_ibr_sum = self.bank_df['weighted_irr_ibr_sum'].sum()
+        self.weighted_irr_uvr_sum = self.bank_df['weighted_irr_ibr_sum'].sum()
         self.total_weighted_irr_sum = self.bank_df['weighted_irr_sum'].sum()
         self.total_weighted_duration_sum = self.bank_df['weighted_duration_sum'].sum()
         self.total_weighted_tenor_sum = self.bank_df['weighted_tenor_sum'].sum()
@@ -173,6 +199,8 @@ class LoanPortfolioAnalyzer:
                 self.weighted_irr_fija_sum / self.total_value_fija_sum) if self.total_value_fija_sum > 0 else None
         self.total_average_irr_ibr = (
                 self.weighted_irr_ibr_sum / self.total_value_ibr_sum) if self.total_value_ibr_sum > 0 else None
+        self.total_average_irr_uvr = (
+                self.weighted_irr_uvr_sum / self.total_value_uvr_sum) if self.total_value_ibr_sum > 0 else None
 
         self.accrued_interest_sum = self.bank_df['accrued_interest'].sum()
 
@@ -190,6 +218,8 @@ class LoanPortfolioAnalyzer:
             'total_value_fija': [self.total_value_fija_sum],
             'average_irr_fija': [self.total_average_irr_fija],
             'total_value_ibr': [self.total_value_ibr_sum],
+            'total_value_uvr': [self.total_value_uvr_sum],
+            'average_irr_uvr': [self.total_average_irr_uvr],
             'average_irr_ibr': [self.total_average_irr_ibr],
             'not_calculated_loan_count': [self.not_calculated_loan_count],
             'loan_ids': [self.loan_ids_list]
@@ -199,7 +229,7 @@ class LoanPortfolioAnalyzer:
         final_df = final_df[
             ['total_value', 'accrued_interest', 'average_irr', 'average_duration', 'average_tenor', 'loan_count',
              'outdated_loan_count', 'total_value_fija', 'average_irr_fija', 'total_value_ibr', 'average_irr_ibr',
-             'not_calculated_loan_count', 'loan_ids']]
+             'not_calculated_loan_count', 'loan_ids','total_value_uvr','average_irr_uvr']]
         final_df.fillna(value=0, inplace=True)
 
         final_df = final_df.reset_index()

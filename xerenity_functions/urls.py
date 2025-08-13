@@ -120,6 +120,9 @@ def cpi_implicit(request):
 
 
 def all_loans(request):
+    calc = AllLoanServer(json.loads(request.body))
+    return calc.calculate()
+    """
     try:
         calc = AllLoanServer(json.loads(request.body))
         return calc.calculate()
@@ -127,7 +130,7 @@ def all_loans(request):
         return responseHttpError(message=xerror.message, code=xerror.code)
     except Exception as e:
         return responseHttpError(message=str(e), code=400)
-
+    """
 
 def wake_up(request):
     return responseHttpOk(body={"message": "Servidor de creditos activado"})

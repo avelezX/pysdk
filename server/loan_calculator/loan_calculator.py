@@ -13,7 +13,7 @@ class LoanCalculatorServer(XerenityFunctionServer):
 
         self.body = body
 
-        self.local_dev=local_dev
+        self.local_dev = local_dev
 
         expected = {
             'interest_rate': [int, float],
@@ -21,10 +21,10 @@ class LoanCalculatorServer(XerenityFunctionServer):
             'number_of_payments': [float, int],
             'start_date': [str],
             'original_balance': [float, int],
-            'bank':[str,None],
-            'id':[str],
-            'type':[str],
-            'owner':[str]
+            'bank': [str, None],
+            'id': [str],
+            'type': [str],
+            'owner': [str]
         }
 
         body_fields = set(expected).difference(body.keys())
@@ -126,28 +126,11 @@ class LoanCalculatorServer(XerenityFunctionServer):
         except Exception as er:
             raise XerenityError(message=str(er), code=400)
 
-
-
     def cash_flow_uvr(self):
         """
         Escribir como calcular el credito de un UV
         """
-
-        loan = FixedRateLoan(**self.body)
-        payment = loan.generate_cash_flow(uvr=True)
-
-        if type(payment) is pd.DataFrame:
-
-            payment['date'] = payment['date'].apply(str)
-
-            return responseHttpOk(body=payment.to_dict(orient="records"))
-
-        else:
-            return responseHttpOk(body={"cash_flow": str(payment)})
-
-        """
         try:
-
             loan = FixedRateLoan(**self.body)
             payment = loan.generate_cash_flow(uvr=True)
 
@@ -155,12 +138,14 @@ class LoanCalculatorServer(XerenityFunctionServer):
 
                 payment['date'] = payment['date'].apply(str)
 
+                if self.local_dev:
+                    return payment.to_dict(orient="records")
                 return responseHttpOk(body=payment.to_dict(orient="records"))
-
             else:
-                return responseHttpOk(body={"cash_flow": str(payment)})
+                if self.local_dev:
+                    return {"cash_flow": str(payment)}
 
+                return responseHttpOk(body={"cash_flow": str(payment)})
         except Exception as er:
 
             raise XerenityError(message=str(er), code=400)
-        """
