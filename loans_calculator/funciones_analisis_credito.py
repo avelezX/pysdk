@@ -92,6 +92,7 @@ def create_cashflows_and_total_value(df, value_date,start_date,convention):
     - cashflows (pd.DataFrame): DataFrame with 'payment' and 'date' columns
     - total_value (float): Sum of all payment values in the filtered DataFrame
     """
+
     # Ensure the 'date' column is datetime
     df['date'] = pd.to_datetime(df['date'])
     

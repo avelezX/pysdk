@@ -79,10 +79,16 @@ class LoanCalculatorServer(XerenityFunctionServer):
 
                 payment['date'] = payment['date'].apply(str)
 
-                return responseHttpOk(body=payment.to_dict(orient="records"))
+                if self.local_dev:
+                    return payment.to_dict(orient="records")
+                else:
+                    return responseHttpOk(body=payment.to_dict(orient="records"))
 
             else:
-                return responseHttpOk(body={"cash_flow": str(payment)})
+                if self.local_dev:
+                    return {"cash_flow": str(payment)}
+                else:
+                    return responseHttpOk(body={"cash_flow": str(payment)})
 
         except Exception as er:
 

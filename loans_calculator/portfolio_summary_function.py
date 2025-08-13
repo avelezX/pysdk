@@ -62,11 +62,16 @@ class LoanPortfolioAnalyzer:
             # try:
             loan_temp = loan.copy()
 
+            loan_payments = []
             if loan_temp["type"] == 'uvr':
                 loan_temp['db_info'] = self.db_info_uvr
                 calc = LoanCalculatorServer(loan_temp, local_dev=True)
                 loan_payments = calc.cash_flow_uvr()
-            else:
+            if loan_temp["type"] == 'fija':
+                loan_temp['db_info'] = self.db_info
+                calc = LoanCalculatorServer(loan_temp, local_dev=True)
+                loan_payments = calc.cash_flow()
+            elif loan_temp["type"] == 'ibr':
                 loan_temp['db_info'] = self.db_info
                 calc = LoanCalculatorServer(loan_temp, local_dev=True)
                 loan_payments = calc.cash_flow_ibr()
