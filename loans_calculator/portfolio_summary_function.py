@@ -116,8 +116,8 @@ class LoanPortfolioAnalyzer:
                     'weighted_irr_fija_sum': 0,
                     'total_value_ibr': 0,
                     'weighted_irr_ibr_sum': 0,
-                    'total_value_uvr':0,
-                    'weighted_irr_uvr_sum':0,
+                    'total_value_uvr': 0,
+                    'weighted_irr_uvr_sum': 0,
                     'loan_ids': []
                 }
 
@@ -184,7 +184,7 @@ class LoanPortfolioAnalyzer:
 
         self.weighted_irr_fija_sum = self.bank_df['weighted_irr_fija_sum'].sum()
         self.weighted_irr_ibr_sum = self.bank_df['weighted_irr_ibr_sum'].sum()
-        self.weighted_irr_uvr_sum = self.bank_df['weighted_irr_ibr_sum'].sum()
+        self.weighted_irr_uvr_sum = self.bank_df['weighted_irr_uvr_sum'].sum()
         self.total_weighted_irr_sum = self.bank_df['weighted_irr_sum'].sum()
         self.total_weighted_duration_sum = self.bank_df['weighted_duration_sum'].sum()
         self.total_weighted_tenor_sum = self.bank_df['weighted_tenor_sum'].sum()
@@ -229,7 +229,7 @@ class LoanPortfolioAnalyzer:
         final_df = final_df[
             ['total_value', 'accrued_interest', 'average_irr', 'average_duration', 'average_tenor', 'loan_count',
              'outdated_loan_count', 'total_value_fija', 'average_irr_fija', 'total_value_ibr', 'average_irr_ibr',
-             'not_calculated_loan_count', 'loan_ids','total_value_uvr','average_irr_uvr']]
+             'not_calculated_loan_count', 'loan_ids', 'total_value_uvr', 'average_irr_uvr']]
         final_df.fillna(value=0, inplace=True)
 
         final_df = final_df.reset_index()
