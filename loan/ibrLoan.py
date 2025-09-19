@@ -8,6 +8,7 @@ class IbrLoan(Loan):
     def generate_cash_flow(self, value_date=None, uvr=None):
 
         # Curve deberia ser una curva de IBR generada con la valoracion de la curva actual
+
         curve = self.qlHelper.create_curve(db_info=self.db_info,value_date=value_date)
 
         periodicidad_tasa = self.periodicity_spanish
@@ -46,6 +47,7 @@ class IbrLoan(Loan):
         self.min_period_rate = self.min_period_rate
         result_df['spread'] = self.interest_rate
         result_df['principal'] = 0  # self.original_balance / self.capital_payments
+
 
         # Iterate through each date in your_date_list
         moving_period = ql.Period(int(12 * number_to_user[self.periodicity]), ql.Months)

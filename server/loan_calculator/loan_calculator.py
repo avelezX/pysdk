@@ -101,36 +101,37 @@ class LoanCalculatorServer(XerenityFunctionServer):
         :return:
         """
 
-        try:
-            loan = IbrLoan(**self.body)
+        loan = IbrLoan(**self.body)
 
-            loan.rate_type = 'IBR'
+        loan.rate_type = 'IBR'
 
-            value_date_db = loan.db_info['fecha'][0]
+        value_date_db = loan.db_info['fecha'][0]
 
-            value_date = datetime.strptime(value_date_db, '%Y-%m-%dT%H:%M:%S')
+        value_date = datetime.strptime(value_date_db, '%Y-%m-%dT%H:%M:%S')
 
-            payment = loan.generate_cash_flow(
-                value_date=value_date
-            )
+        payment = loan.generate_cash_flow(
+            value_date=value_date
+        )
 
-            if type(payment) is pd.DataFrame:
+        if type(payment) is pd.DataFrame:
 
-                payment['date'] = payment['date'].apply(str)
+            payment['date'] = payment['date'].apply(str)
 
-                if self.local_dev:
-                    return payment.to_dict(orient="records")
-                else:
-                    return responseHttpOk(body=payment.to_dict(orient="records"))
-
+            if self.local_dev:
+                return payment.to_dict(orient="records")
             else:
-                if self.local_dev:
-                    return {"cash_flow": str(payment)}
-                else:
-                    return responseHttpOk(body={"cash_flow": str(payment)})
+                return responseHttpOk(body=payment.to_dict(orient="records"))
 
-        except Exception as er:
-            raise XerenityError(message=str(er), code=400)
+        else:
+            if self.local_dev:
+                return {"cash_flow": str(payment)}
+            else:
+                return responseHttpOk(body={"cash_flow": str(payment)})
+        #try:
+
+
+        #except Exception as er:
+        #    raise XerenityError(message=str(er), code=400)
 
     def cash_flow_uvr(self):
         """

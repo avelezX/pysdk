@@ -4,17 +4,28 @@ from src.xerenity.xty import Xerenity
 from server.loan_calculator.loan_calculator import LoanCalculatorServer
 
 xty = Xerenity(
-    username='',
-    password='',
+    username='s.salgado@saman-wm.com',
+    password='simon_2006',
 )
 
+loan_data = xty.session.rpc('ibr_cash_flow_data',
+                            {"credito_id": "79f83af8-6382-4c7f-ae0a-0a91668b37b9", "filter_date": "2025-09-19"}
+                            ).execute().data
+
+print(loan_data)
+
+response = requests.get('http://127.0.0.1:8000/ibr_rates',json=loan_data)
+print(response.json())
+"""
 all_loans_data = xty.session.rpc('uvr_cash_flow_data',
-                                 {"credito_id": "b78f3f59-360b-467b-b3b9-b3462cf1ea78", "filter_date": "2025-07-28"}
+                                 {"credito_id":"79f83af8-6382-4c7f-ae0a-0a91668b37b9","filter_date":"2025-09-01"}
                                  ).execute().data
 
 open("all_loan.json", "w+").write(json.dumps(all_loans_data))
 
 
-response = requests.get('http://127.0.0.1:8000/uvr_rates',json=all_loans_data)
+
 
 print(response.json())
+
+"""

@@ -120,7 +120,6 @@ def cpi_implicit(request):
 
 
 def all_loans(request):
-
     try:
         calc = AllLoanServer(json.loads(request.body))
         return calc.calculate()

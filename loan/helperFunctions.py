@@ -71,6 +71,8 @@ class QlHelperFunctions:
             OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_2y'][0] / 100, 24, ql.Months))
             OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_5y'][0] / 100, 60, ql.Months))
             OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_10y'][0] / 100, 120, ql.Months))
+            OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_15y'][0] / 100, 180, ql.Months))
+            OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_20y'][0] / 100, 240, ql.Months))
 
             OIS_helpers.append(self.depo_helpers_ibr(db_info['ibr_1d'][0] / 100, 1, ql.Days))
             OIS_helpers.append(self.depo_helpers_ibr(db_info['ibr_1m'][0] / 100, 1, ql.Months))
