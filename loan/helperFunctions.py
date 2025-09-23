@@ -64,15 +64,26 @@ class QlHelperFunctions:
         )
         return logLinear
 
-    def create_curve(self, db_info, value_date):
+    def create_curve(self, db_info, value_date, years):
+
         OIS_helpers = []
 
         if db_info is not None:
-            OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_2y'][0] / 100, 24, ql.Months))
-            OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_5y'][0] / 100, 60, ql.Months))
-            OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_10y'][0] / 100, 120, ql.Months))
-            OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_15y'][0] / 100, 180, ql.Months))
-            #OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_20y'][0] / 100, 240, ql.Months))
+
+            if years <= 2:
+                OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_2y'][0] / 100, 24, ql.Months))
+            if 2 < years <= 5:
+                OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_2y'][0] / 100, 24, ql.Months))
+                OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_5y'][0] / 100, 60, ql.Months))
+            if 5 < years <= 10:
+                OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_2y'][0] / 100, 24, ql.Months))
+                OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_5y'][0] / 100, 60, ql.Months))
+                OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_10y'][0] / 100, 120, ql.Months))
+            else:
+                OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_2y'][0] / 100, 24, ql.Months))
+                OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_5y'][0] / 100, 60, ql.Months))
+                OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_10y'][0] / 100, 120, ql.Months))
+                OIS_helpers.append(self.ibr_swap_cupon_helper(db_info['ibr_15y'][0] / 100, 180, ql.Months))
 
             OIS_helpers.append(self.depo_helpers_ibr(db_info['ibr_1d'][0] / 100, 1, ql.Days))
             OIS_helpers.append(self.depo_helpers_ibr(db_info['ibr_1m'][0] / 100, 1, ql.Months))
