@@ -12,10 +12,13 @@ loan_data = xty.session.rpc('ibr_cash_flow_data',
                             {"credito_id": "79f83af8-6382-4c7f-ae0a-0a91668b37b9", "filter_date": "2025-09-19"}
                             ).execute().data
 
-print(loan_data)
+#print(loan_data)
 
 response = requests.get('http://127.0.0.1:8000/ibr_rates',json=loan_data)
 print(response.json())
+# 'start_date': '2022-06-13T00:00:00'
+# periodicity
+#  number_of_payments
 """
 all_loans_data = xty.session.rpc('uvr_cash_flow_data',
                                  {"credito_id":"79f83af8-6382-4c7f-ae0a-0a91668b37b9","filter_date":"2025-09-01"}

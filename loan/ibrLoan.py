@@ -9,8 +9,6 @@ class IbrLoan(Loan):
 
         # Curve deberia ser una curva de IBR generada con la valoracion de la curva actual
 
-        curve = self.qlHelper.create_curve(db_info=self.db_info,value_date=value_date)
-
         periodicidad_tasa = self.periodicity_spanish
 
         tipo_de_cobro = self.days_count
@@ -55,6 +53,15 @@ class IbrLoan(Loan):
 
         index_rows = ['date', 'beginning_balance', 'rate', 'rate_tot', 'payment', 'interest', 'principal',
                       'ending_balance']
+
+        # TODO Hacer el calculo de meses aqui
+        print(self.periodicity)
+        print(self.number_of_payments)
+        print(self.start_date)
+
+        years = number_to_user[self.periodicity]*self.number_of_payments
+
+        curve = self.qlHelper.create_curve(db_info=self.db_info, value_date=value_date, years=years)
 
         for i, date in enumerate(dates):
             # Find the closest date in the 'tasas' DataFrame
