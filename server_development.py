@@ -9,7 +9,7 @@ xty = Xerenity(
 )
 
 loan_data = xty.session.rpc('ibr_cash_flow_data',
-                            {"credito_id": "79f83af8-6382-4c7f-ae0a-0a91668b37b9", "filter_date": "2025-09-19"}
+                            {"credito_id":"54739020-ada0-4d68-bf74-f16eb8ecfd54","filter_date":"2025-09-23"}
                             ).execute().data
 
 #print(loan_data)
