@@ -55,12 +55,8 @@ class IbrLoan(Loan):
                       'ending_balance']
 
         # TODO Hacer el calculo de meses aqui
-        print(self.periodicity)
-        print(self.number_of_payments)
-        print(self.start_date)
 
         years = number_to_user[self.periodicity]*self.number_of_payments
-
         curve = self.qlHelper.create_curve(db_info=self.db_info, value_date=value_date, years=years)
 
         for i, date in enumerate(dates):
