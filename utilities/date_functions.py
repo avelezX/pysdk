@@ -83,14 +83,16 @@ def calculate_irr(dates, cashflows, convention):
             
             if convention == '30/360':
                 days = days_30_360_ql(ql_start, ql_end)
+                time = days / 360
             elif convention == 'actual/actual':
                 days = days_act_act_ql(ql_start, ql_end)
+                time = days / 365.25
             elif convention == 'actual/365':
                 days = days_act_365_ql(ql_start, ql_end)
+                time = days / 365
             else:
                 raise ValueError("Unsupported convention. Choose '30/360', 'actual/actual', or 'actual/365'.")
             
-            time = days / 365.25
             npv_value += cashflow / (1 + rate) ** time
         return npv_value
 
