@@ -60,7 +60,7 @@ class QlHelperFunctions:
         logLinear = ql.PiecewiseLogLinearDiscount(
             datetime_to_ql(value_date),
             quotes,
-            ql.Thirty360(ql.Thirty360.BondBasis)
+            ql.Actual360()
         )
         return logLinear
 
