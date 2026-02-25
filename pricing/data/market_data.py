@@ -161,7 +161,7 @@ class MarketDataLoader:
 
         data = self._get(
             "cop_fwd_points",
-            f"select=mid&fecha=eq.{target_date}&tenor=eq.Spot Next&limit=1",
+            f"select=mid&fecha=eq.{target_date}&tenor=eq.SN&limit=1",
         )
         if data and "mid" in data[0]:
             return float(data[0]["mid"])
