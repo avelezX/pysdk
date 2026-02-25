@@ -76,22 +76,37 @@ class MarketDataLoader:
         """
         Fetch IBR swap quotes from ibr_swaps_cluster table.
         Returns dict in the format expected by curve builders:
-        {ibr_1d: [rate], ibr_1m: [rate], ...} where rate is in percent.
+        {ibr_3m: [rate], ibr_6m: [rate], ...} where rate is in percent.
+
+        Each tenor may arrive at a different execution_timestamp during the day,
+        so we fetch all records for the latest date and take the most recent
+        rate per tenor.
         """
         if target_date is None:
-            target_date = self._latest_date("ibr_swaps_cluster", "execution_timestamp")
+            # Get latest timestamp to extract the date
+            latest_ts = self._latest_date("ibr_swaps_cluster", "execution_timestamp")
+            if latest_ts is None:
+                return {}
+            # Extract just the date part (YYYY-MM-DD)
+            target_date = latest_ts[:10]
 
-        if target_date is None:
-            return {}
-
+        # Fetch all records for the day, ordered by timestamp desc
         data = self._get(
             "ibr_swaps_cluster",
-            f"select=*&execution_timestamp=eq.{target_date}",
+            f"select=month_diff_effective_expiration,rate,execution_timestamp"
+            f"&execution_timestamp=gte.{target_date}T00:00:00"
+            f"&execution_timestamp=lt.{target_date}T23:59:59"
+            f"&order=execution_timestamp.desc",
         )
         if not data:
             return {}
 
-        df = pd.DataFrame(data)
+        # Take the latest rate per tenor (first occurrence since ordered desc)
+        latest_per_tenor = {}
+        for row in data:
+            months = row["month_diff_effective_expiration"]
+            if months not in latest_per_tenor and row["rate"] is not None:
+                latest_per_tenor[months] = row["rate"]
 
         # Map month_diff_effective_expiration to tenor keys
         tenor_map = {
@@ -99,20 +114,25 @@ class MarketDataLoader:
             1: "ibr_1m",
             3: "ibr_3m",
             6: "ibr_6m",
+            9: "ibr_9m",
             12: "ibr_12m",
             24: "ibr_2y",
+            36: "ibr_3y",
+            42: "ibr_3_5y",
+            48: "ibr_4y",
             60: "ibr_5y",
+            72: "ibr_6y",
+            84: "ibr_7y",
+            108: "ibr_9y",
             120: "ibr_10y",
             180: "ibr_15y",
             240: "ibr_20y",
         }
 
         result = {}
-        if "month_diff_effective_expiration" in df.columns and "rate" in df.columns:
-            grouped = df.groupby("month_diff_effective_expiration")["rate"].mean()
-            for months, key in tenor_map.items():
-                if months in grouped.index:
-                    result[key] = [grouped[months]]
+        for months, key in tenor_map.items():
+            if months in latest_per_tenor:
+                result[key] = [latest_per_tenor[months]]
 
         return result
 
