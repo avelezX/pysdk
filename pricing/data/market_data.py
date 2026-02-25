@@ -81,24 +81,21 @@ class MarketDataLoader:
         "ibr_12m": 17,
     }
 
-    # Swap rate tables (each has day + close columns)
+    # Swap rate tables accessible to collector role
     _SWAP_TABLES = {
         "ibr_2y": "ibr_2y",
         "ibr_5y": "ibr_5y",
         "ibr_10y": "ibr_10y",
-        "ibr_15y": "ibr_15y",
-        "ibr_20y": "ibr_20y",
     }
 
     def fetch_ibr_quotes(self, target_date: str = None) -> dict:
         """
-        Fetch IBR curve quotes directly from source tables.
+        Fetch IBR curve quotes from source tables + materialized view fallback.
 
         Deposits (1D-12M): from banrep_series_value_v2 (BanRep official rates).
-        Swaps (2Y-20Y): from individual ibr_Xy tables (market swap rates).
-
-        Queries the latest available value for each tenor, ensuring fresh data
-        without depending on the ibr_quotes_curve materialized view refresh.
+        Swaps (2Y-10Y): from individual ibr_Xy tables (direct, always fresh).
+        Swaps (15Y, 20Y): from ibr_quotes_curve materialized view (restricted
+                          tables not accessible to collector role directly).
 
         Returns dict: {ibr_1d: [rate], ibr_1m: [rate], ...} rates in percent.
         """
@@ -119,7 +116,7 @@ class MarketDataLoader:
             if data and data[0].get("valor") is not None:
                 result[key] = [data[0]["valor"]]
 
-        # Swaps from individual tables
+        # Swaps 2Y-10Y from accessible tables
         for key, table in self._SWAP_TABLES.items():
             if target_date is None:
                 data = self._get(
@@ -133,6 +130,21 @@ class MarketDataLoader:
                 )
             if data and data[0].get("close") is not None:
                 result[key] = [data[0]["close"]]
+
+        # 15Y and 20Y from materialized view (tables not accessible directly)
+        try:
+            mv_data = self._get(
+                "ibr_quotes_curve",
+                "select=ibr_15y,ibr_20y&order=fecha.desc&limit=1",
+            )
+            if mv_data:
+                row = mv_data[0]
+                if row.get("ibr_15y") is not None:
+                    result["ibr_15y"] = [row["ibr_15y"]]
+                if row.get("ibr_20y") is not None:
+                    result["ibr_20y"] = [row["ibr_20y"]]
+        except Exception:
+            pass  # Curve builds without 15Y/20Y if view unavailable
 
         return result
 
