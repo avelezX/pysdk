@@ -23,6 +23,12 @@ from server.loan_calculator.loan_calculator import LoanCalculatorServer
 from server.ibr_quotes_servefr.ibr_quotes_calculator import IbQuotesServer
 from server.uvr_prints_server.uvr_prints_calculator import UVRPrintsServer
 from server.all_loans_server.all_loans_server import AllLoanServer
+from server.pricing_api.views import (
+    pricing_build, pricing_status, pricing_bump, pricing_reset,
+    pricing_ndf, pricing_ndf_implied_curve,
+    pricing_ibr_swap, pricing_ibr_par_curve,
+    pricing_tes_bond, pricing_xccy_swap,
+)
 
 
 def period_payment(request):
@@ -142,5 +148,16 @@ urlpatterns = [
     path("cpi_implicit", cpi_implicit, name="cpi_implicit"),
     path("all_loans", all_loans, name="all_loans"),
     path("uvr_rates", uvr_rates, name="uvr_rates"),
-    path("wake_up", wake_up, name="wake_up")
+    path("wake_up", wake_up, name="wake_up"),
+    # Pricing API
+    path("pricing/curves/build", pricing_build, name="pricing_build"),
+    path("pricing/curves/status", pricing_status, name="pricing_status"),
+    path("pricing/curves/bump", pricing_bump, name="pricing_bump"),
+    path("pricing/curves/reset", pricing_reset, name="pricing_reset"),
+    path("pricing/ndf", pricing_ndf, name="pricing_ndf"),
+    path("pricing/ndf/implied-curve", pricing_ndf_implied_curve, name="pricing_ndf_implied_curve"),
+    path("pricing/ibr-swap", pricing_ibr_swap, name="pricing_ibr_swap"),
+    path("pricing/ibr/par-curve", pricing_ibr_par_curve, name="pricing_ibr_par_curve"),
+    path("pricing/tes-bond", pricing_tes_bond, name="pricing_tes_bond"),
+    path("pricing/xccy-swap", pricing_xccy_swap, name="pricing_xccy_swap"),
 ]
