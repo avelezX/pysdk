@@ -295,4 +295,4 @@ def pricing_xccy_par_basis_curve(request):
         tenors_years=body.get("tenors_years"),
     )
 
-    return responseHttpOk(_serialize(result))
+    return responseHttpOk(result)
