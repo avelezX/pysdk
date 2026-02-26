@@ -111,6 +111,20 @@ class IbrSwapPricer:
         floating_leg_npv = swap.overnightLegNPV()
         fixed_leg_bps = swap.fixedLegBPS()
 
+        # Carry: current period's IBR forward rate vs fixed rate
+        day_counter = ql.Actual360()
+        ref_date = self.cm.ibr_handle.referenceDate()
+        # Get 3M forward IBR rate from today
+        fwd_end = self.calendar.advance(ref_date, ql.Period(3, ql.Months))
+        ibr_fwd = self.cm.ibr_handle.forwardRate(
+            ref_date, fwd_end, day_counter, ql.Simple
+        ).rate()
+        tau = day_counter.yearFraction(ref_date, fwd_end)
+        sign = 1.0 if pay_fixed else -1.0
+        # pay_fixed: I pay fixed, receive floating → carry positive when IBR > fixed
+        carry_cop = sign * (ibr_fwd + spread - fixed_rate) * notional * tau
+        carry_differential_bps = round((ibr_fwd + spread - fixed_rate) * 10000, 1)
+
         return {
             "npv": npv,
             "fair_rate": fair_rate,
@@ -122,6 +136,10 @@ class IbrSwapPricer:
             "notional": notional,
             "pay_fixed": pay_fixed,
             "spread": spread,
+            "carry_cop": round(carry_cop, 2),
+            "carry_rate_floating_pct": round(ibr_fwd * 100, 4),
+            "carry_rate_fixed_pct": round(fixed_rate * 100, 4),
+            "carry_differential_bps": carry_differential_bps,
         }
 
     def par_rate(self, tenor: ql.Period) -> float:

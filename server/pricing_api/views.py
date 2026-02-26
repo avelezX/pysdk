@@ -296,3 +296,113 @@ def pricing_xccy_par_basis_curve(request):
     )
 
     return responseHttpOk(result)
+
+
+# ── Portfolio Batch Reprice ──
+
+@csrf_exempt
+def portfolio_reprice(request):
+    """Batch reprice all positions in a portfolio. One request, all instruments."""
+    err = _ensure_curves()
+    if err:
+        return err
+
+    body = json.loads(request.body) if request.body else {}
+    cm = _get_cm()
+
+    xccy_results = []
+    ndf_results = []
+    ibr_swap_results = []
+
+    total_npv_cop = 0.0
+    total_npv_usd = 0.0
+    total_carry_cop = 0.0
+    total_carry_usd = 0.0
+    total_pnl_rate_cop = 0.0
+    total_pnl_fx_cop = 0.0
+
+    # Reprice XCCY positions
+    xccy_pricer = XccySwapPricer(cm)
+    for pos in body.get("xccy_positions", []):
+        try:
+            res = xccy_pricer.price(
+                notional_usd=pos["notional_usd"],
+                start_date=_parse_date(pos["start_date"]),
+                maturity_date=_parse_date(pos["maturity_date"]),
+                usd_spread_bps=pos.get("usd_spread_bps", 0.0),
+                cop_spread_bps=pos.get("cop_spread_bps", 0.0),
+                pay_usd=pos.get("pay_usd", True),
+                fx_initial=pos.get("fx_initial"),
+                payment_frequency=pos.get("payment_frequency", "3M"),
+                amortization_type=pos.get("amortization_type", "bullet"),
+                amortization_schedule=pos.get("amortization_schedule"),
+            )
+            res["position_id"] = pos.get("id")
+            res["label"] = pos.get("label", "")
+            xccy_results.append(_serialize(res))
+            total_npv_cop += res["npv_cop"]
+            total_npv_usd += res["npv_usd"]
+            total_carry_cop += res.get("carry_cop", 0)
+            total_carry_usd += res.get("carry_usd", 0)
+            total_pnl_rate_cop += res.get("pnl_rate_cop", 0)
+            total_pnl_fx_cop += res.get("pnl_fx_cop", 0)
+        except Exception as e:
+            xccy_results.append({"position_id": pos.get("id"), "error": str(e)})
+
+    # Reprice NDF positions
+    ndf_pricer = NdfPricer(cm)
+    for pos in body.get("ndf_positions", []):
+        try:
+            res = ndf_pricer.price(
+                notional_usd=pos["notional_usd"],
+                strike=pos["strike"],
+                maturity_date=_parse_date(pos["maturity_date"]),
+                direction=pos.get("direction", "buy"),
+            )
+            res["position_id"] = pos.get("id")
+            res["label"] = pos.get("label", "")
+            ndf_results.append(_serialize(res))
+            total_npv_cop += res["npv_cop"]
+            total_npv_usd += res["npv_usd"]
+            total_carry_cop += res.get("carry_cop_daily", 0)
+            total_carry_usd += res.get("carry_usd_daily", 0)
+        except Exception as e:
+            ndf_results.append({"position_id": pos.get("id"), "error": str(e)})
+
+    # Reprice IBR Swap positions
+    ibr_pricer = IbrSwapPricer(cm)
+    for pos in body.get("ibr_swap_positions", []):
+        try:
+            if pos.get("maturity_date"):
+                tenor = _parse_date(pos["maturity_date"])
+            else:
+                tenor = ql.Period(int(pos.get("tenor_years", 1)), ql.Years)
+            res = ibr_pricer.price(
+                notional=pos["notional"],
+                tenor_or_maturity=tenor,
+                fixed_rate=pos["fixed_rate"],
+                pay_fixed=pos.get("pay_fixed", True),
+                spread=pos.get("spread_bps", 0) / 10000.0,
+            )
+            res["position_id"] = pos.get("id")
+            res["label"] = pos.get("label", "")
+            ibr_swap_results.append(_serialize(res))
+            total_npv_cop += res["npv"]
+            total_carry_cop += res.get("carry_cop", 0)
+        except Exception as e:
+            ibr_swap_results.append({"position_id": pos.get("id"), "error": str(e)})
+
+    spot = cm.fx_spot or 1.0
+    return responseHttpOk({
+        "xccy_results": xccy_results,
+        "ndf_results": ndf_results,
+        "ibr_swap_results": ibr_swap_results,
+        "summary": {
+            "total_npv_cop": round(total_npv_cop, 2),
+            "total_npv_usd": round(total_npv_usd + total_npv_cop / spot if total_npv_usd == 0 else total_npv_usd, 2),
+            "total_carry_cop": round(total_carry_cop, 2),
+            "total_carry_usd": round(total_carry_usd, 2),
+            "pnl_rate_cop": round(total_pnl_rate_cop, 2),
+            "pnl_fx_cop": round(total_pnl_fx_cop, 2),
+        },
+    })

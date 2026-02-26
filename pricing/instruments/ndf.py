@@ -108,6 +108,13 @@ class NdfPricer:
         npv_usd = npv_cop / spot
         delta_cop = sign * notional_usd * df_cop
 
+        # Carry (theta): daily P&L from forward points decay
+        day_counter = ql.Actual360()
+        ref_date = self.cm.sofr_handle.referenceDate()
+        days_to_maturity = day_counter.dayCount(ref_date, maturity_date)
+        carry_cop_daily = npv_cop / max(days_to_maturity, 1)
+        carry_usd_daily = npv_usd / max(days_to_maturity, 1)
+
         return {
             "npv_usd": npv_usd,
             "npv_cop": npv_cop,
@@ -117,6 +124,9 @@ class NdfPricer:
             "df_usd": df_usd,
             "df_cop": df_cop,
             "delta_cop": delta_cop,
+            "carry_cop_daily": round(carry_cop_daily, 2),
+            "carry_usd_daily": round(carry_usd_daily, 2),
+            "days_to_maturity": days_to_maturity,
             "notional_usd": notional_usd,
             "direction": direction,
             "spot": spot,

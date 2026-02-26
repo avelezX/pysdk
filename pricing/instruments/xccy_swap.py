@@ -176,6 +176,13 @@ class XccySwapPricer:
         usd_principal_pv = 0.0
         cop_principal_pv = 0.0
 
+        # Carry: capture the first future period's rates and net interest
+        carry_cop = 0.0
+        carry_rate_cop_pct = 0.0
+        carry_rate_usd_pct = 0.0
+        carry_differential_bps = 0.0
+        carry_period_found = False
+
         # Use curve reference dates (accounts for settlement days) not valuation_date
         # Curves may have referenceDate = valuation_date + settlement_days
         sofr_ref = self.cm.sofr_handle.referenceDate()
@@ -222,6 +229,14 @@ class XccySwapPricer:
             # Interest cashflows
             usd_interest = not_usd_i * (usd_fwd + usd_spread) * tau
             cop_interest = not_cop_i * (cop_fwd + cop_spread) * tau
+
+            # Carry: capture from the first future period (currently accruing)
+            if not period_is_past and not carry_period_found:
+                carry_period_found = True
+                carry_cop = sign * (cop_interest - usd_interest * fx)
+                carry_rate_cop_pct = round(cop_fwd * 100, 4)
+                carry_rate_usd_pct = round((usd_fwd + usd_spread) * 100, 4)
+                carry_differential_bps = round((cop_fwd - usd_fwd - usd_spread) * 10000, 1)
 
             # Principal amortization for this period
             usd_principal = notional_usd * amort_pcts[i]
@@ -307,6 +322,11 @@ class XccySwapPricer:
             "usd_principal_pv": round(usd_principal_pv, 2),
             "cop_principal_pv": round(cop_principal_pv, 2),
             "par_basis_bps": round(par_basis, 2) if par_basis is not None else None,
+            "carry_cop": round(carry_cop, 2),
+            "carry_usd": round(carry_cop / spot, 2) if spot else 0,
+            "carry_rate_cop_pct": carry_rate_cop_pct,
+            "carry_rate_usd_pct": carry_rate_usd_pct,
+            "carry_differential_bps": carry_differential_bps,
             "notional_usd": notional_usd,
             "notional_cop": notional_cop,
             "fx_initial": fx,

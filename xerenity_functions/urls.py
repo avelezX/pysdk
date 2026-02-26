@@ -28,6 +28,7 @@ from server.pricing_api.views import (
     pricing_ndf, pricing_ndf_implied_curve,
     pricing_ibr_swap, pricing_ibr_par_curve,
     pricing_tes_bond, pricing_xccy_swap, pricing_xccy_par_basis_curve,
+    portfolio_reprice,
 )
 
 
@@ -161,4 +162,5 @@ urlpatterns = [
     path("pricing/tes-bond", pricing_tes_bond, name="pricing_tes_bond"),
     path("pricing/xccy-swap", pricing_xccy_swap, name="pricing_xccy_swap"),
     path("pricing/xccy/par-basis-curve", pricing_xccy_par_basis_curve, name="pricing_xccy_par_basis_curve"),
+    path("pricing/portfolio/reprice", portfolio_reprice, name="portfolio_reprice"),
 ]
