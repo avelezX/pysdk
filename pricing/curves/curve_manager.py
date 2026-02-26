@@ -38,6 +38,7 @@ from utilities.date_functions import datetime_to_ql
 from pricing.curves.ibr_curve import build_ibr_curve, IBR_DETAILS
 from pricing.curves.sofr_curve import build_sofr_curve, sofr_quantlib_det
 from pricing.curves.tes_curve import build_tes_curve
+from pricing.curves.ndf_curve import build_ndf_curve
 
 
 class CurveManager:
@@ -59,19 +60,26 @@ class CurveManager:
         self.ibr_handle = ql.RelinkableYieldTermStructureHandle()
         self.sofr_handle = ql.RelinkableYieldTermStructureHandle()
         self.tes_handle = ql.RelinkableYieldTermStructureHandle()
+        self.ndf_handle = ql.RelinkableYieldTermStructureHandle()
 
         # Underlying curves
         self.ibr_curve = None
         self.sofr_curve = None
         self.tes_curve = None
+        self.ndf_curve = None
 
         # SimpleQuote dictionaries for node overrides
         self.ibr_quotes = {}    # {tenor_key: SimpleQuote}
         self.sofr_quotes = {}   # {tenor_months: SimpleQuote}
 
+        # NDF curve uses DiscountCurve (no SimpleQuotes), stores fwd_points as dict
+        self.ndf_fwd_points = {}  # {tenor_months: fwd_points_value}
+        self._ndf_cop_fwd_df = None  # Cached DataFrame for rebuilding
+
         # Original market values for reset
         self._ibr_market = {}   # {tenor_key: original_value}
         self._sofr_market = {}  # {tenor_months: original_value}
+        self._ndf_market = {}   # {tenor_months: original_fwd_points}
 
         # Overnight indices linked to forwarding curves
         self.ibr_index = ql.OvernightIndex(
@@ -95,6 +103,7 @@ class CurveManager:
         self._ibr_built_at = None
         self._sofr_built_at = None
         self._tes_built_at = None
+        self._ndf_built_at = None
 
     # ── Valuation Date ──
 
@@ -162,9 +171,36 @@ class CurveManager:
         self._tes_built_at = datetime.now()
         return self.tes_curve
 
+    def build_ndf_curve(self, cop_fwd_df: pd.DataFrame, spot: float = None) -> ql.YieldTermStructure:
+        """
+        Build (or rebuild) the NDF-implied COP curve and link it to the handle.
+
+        Requires the SOFR curve to be built first (uses sofr_handle).
+
+        Args:
+            cop_fwd_df: DataFrame from cop_fwd_points (tenor_months, mid)
+            spot: USD/COP spot rate. If None, uses self.fx_spot.
+        """
+        spot = spot or self.fx_spot
+        if spot is None:
+            raise ValueError("FX spot not set. Call set_fx_spot() first.")
+        if self.sofr_curve is None:
+            raise ValueError("SOFR curve not built. Call build_sofr_curve() first.")
+
+        self._ndf_cop_fwd_df = cop_fwd_df.copy()
+        self.ndf_curve, self.ndf_fwd_points = build_ndf_curve(
+            cop_fwd_df, spot, self.sofr_handle, self.valuation_date
+        )
+        self.ndf_handle.linkTo(self.ndf_curve)
+        self._ndf_market = dict(self.ndf_fwd_points)
+        self._ndf_built_at = datetime.now()
+        return self.ndf_curve
+
     def build_all(self, loader) -> dict:
         """
         Build all curves from a MarketDataLoader instance.
+
+        Build order: IBR, SOFR, FX spot, NDF (NDF depends on SOFR + spot).
 
         Args:
             loader: MarketDataLoader instance
@@ -188,6 +224,13 @@ class CurveManager:
         if fx:
             self.set_fx_spot(fx)
             results["fx_spot"] = fx
+
+        # NDF curve requires SOFR + FX spot
+        if self.sofr_curve is not None and self.fx_spot is not None:
+            cop_fwd = loader.fetch_cop_forwards()
+            if not cop_fwd.empty:
+                self.build_ndf_curve(cop_fwd)
+                results["ndf"] = "built"
 
         return results
 
@@ -235,14 +278,55 @@ class CurveManager:
         for sq in self.sofr_quotes.values():
             sq.setValue(sq.value() + shift)
 
+    def _rebuild_ndf_from_fwd_points(self):
+        """Rebuild NDF curve from modified forward points. Internal helper."""
+        if self._ndf_cop_fwd_df is None:
+            return
+        # Update the DataFrame mid column with modified forward points
+        df = self._ndf_cop_fwd_df.copy()
+        for _, row in df.iterrows():
+            months = int(row["tenor_months"])
+            if months in self.ndf_fwd_points:
+                df.loc[row.name, "mid"] = self.fx_spot + self.ndf_fwd_points[months]
+        self.ndf_curve, self.ndf_fwd_points = build_ndf_curve(
+            df, self.fx_spot, self.sofr_handle, self.valuation_date
+        )
+        self.ndf_handle.linkTo(self.ndf_curve)
+
+    def set_ndf_fwd_point(self, tenor_months: int, new_fwd_pts: float):
+        """
+        Modify a single NDF forward point and rebuild the curve.
+
+        Args:
+            tenor_months: e.g., 3 for 3M, 12 for 1Y
+            new_fwd_pts: New forward points in absolute COP terms (e.g., 52.0)
+        """
+        if tenor_months not in self.ndf_fwd_points:
+            raise KeyError(
+                f"Unknown NDF tenor '{tenor_months}M'. "
+                f"Available: {list(self.ndf_fwd_points.keys())}"
+            )
+        self.ndf_fwd_points[tenor_months] = new_fwd_pts
+        self._rebuild_ndf_from_fwd_points()
+
+    def bump_ndf(self, pts: float):
+        """Parallel shift all NDF forward points by pts COP and rebuild."""
+        for k in self.ndf_fwd_points:
+            self.ndf_fwd_points[k] += pts
+        self._rebuild_ndf_from_fwd_points()
+
     def reset_to_market(self):
-        """Reset all SimpleQuotes to their original market values."""
+        """Reset all SimpleQuotes and NDF curve to original market values."""
         for key, original in self._ibr_market.items():
             if key in self.ibr_quotes:
                 self.ibr_quotes[key].setValue(original)
         for key, original in self._sofr_market.items():
             if key in self.sofr_quotes:
                 self.sofr_quotes[key].setValue(original)
+        # NDF: restore original forward points and rebuild
+        if self._ndf_market:
+            self.ndf_fwd_points = dict(self._ndf_market)
+            self._rebuild_ndf_from_fwd_points()
 
     # ── Convenience Methods ──
 
@@ -264,6 +348,12 @@ class CurveManager:
     def sofr_forward_rate(self, start: ql.Date, end: ql.Date) -> float:
         return self.sofr_handle.forwardRate(start, end, ql.Actual360(), ql.Simple).rate()
 
+    def ndf_discount(self, dt: ql.Date) -> float:
+        return self.ndf_handle.discount(dt)
+
+    def ndf_zero_rate(self, dt: ql.Date, compounding: int = ql.Continuous) -> float:
+        return self.ndf_handle.zeroRate(dt, ql.Actual360(), compounding).rate()
+
     # ── Status ──
 
     def status(self) -> dict:
@@ -278,11 +368,24 @@ class CurveManager:
             }
             return info
 
+        def _ndf_info():
+            if self.ndf_curve is None:
+                return {"built": False}
+            return {
+                "built": True,
+                "timestamp": str(self._ndf_built_at),
+                "nodes": {
+                    str(k): v
+                    for k, v in self.ndf_fwd_points.items()
+                },
+            }
+
         return {
             "valuation_date": str(self.valuation_date),
             "fx_spot": self.fx_spot,
             "ibr": _curve_info(self.ibr_curve, self._ibr_built_at, self.ibr_quotes),
             "sofr": _curve_info(self.sofr_curve, self._sofr_built_at, self.sofr_quotes),
+            "ndf": _ndf_info(),
             "tes": {
                 "built": self.tes_curve is not None,
                 "timestamp": str(self._tes_built_at),

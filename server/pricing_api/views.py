@@ -264,11 +264,35 @@ def pricing_xccy_swap(request):
         notional_usd=body["notional_usd"],
         start_date=_parse_date(body["start_date"]),
         maturity_date=_parse_date(body["maturity_date"]),
-        xccy_basis_bps=body.get("xccy_basis_bps", 0.0),
+        usd_spread_bps=body.get("usd_spread_bps", 0.0),
+        cop_spread_bps=body.get("cop_spread_bps", 0.0),
         pay_usd=body.get("pay_usd", True),
         fx_initial=body.get("fx_initial"),
-        cop_spread_bps=body.get("cop_spread_bps", 0.0),
-        usd_spread_bps=body.get("usd_spread_bps", 0.0),
+        payment_frequency=body.get("payment_frequency", "3M"),
+        amortization_type=body.get("amortization_type", "bullet"),
+        amortization_schedule=body.get("amortization_schedule"),
+    )
+
+    return responseHttpOk(_serialize(result))
+
+
+@csrf_exempt
+def pricing_xccy_par_basis_curve(request):
+    """Get par xccy basis curve across standard tenors."""
+    err = _ensure_curves()
+    if err:
+        return err
+
+    body = json.loads(request.body) if request.body else {}
+    cm = _get_cm()
+    xccy = XccySwapPricer(cm)
+
+    result = xccy.par_basis_curve(
+        notional_usd=body.get("notional_usd", 1_000_000),
+        fx_initial=body.get("fx_initial"),
+        payment_frequency=body.get("payment_frequency", "3M"),
+        amortization_type=body.get("amortization_type", "bullet"),
+        tenors_years=body.get("tenors_years"),
     )
 
     return responseHttpOk(_serialize(result))

@@ -4,14 +4,16 @@ USD/COP Non-Deliverable Forward (NDF) pricer.
 An NDF settles in USD: at maturity, the difference between the contracted
 forward rate and the fixing rate (BanRep TRM) is exchanged in USD.
 
-The implied forward FX rate from interest rate parity is:
-  F(T) = Spot * DF_USD(T) / DF_COP(T)
+Pricing uses the NDF-implied COP discount curve (from market forward points),
+NOT the IBR curve. The NDF market has its own basis (credit, convertibility,
+supply/demand) that differs from interest rate parity.
 
-NPV_COP = Notional_USD * (Forward - Strike) * DF_COP(T_delivery)
+Forward FX rate:
+  F(T) = Spot * DF_USD(T) / DF_COP_ndf(T)
 
-Supports both:
-  - Implied forwards from IBR/SOFR curves (interest rate parity)
-  - Market-observed forwards from FXEmpire cop_fwd_points table
+NPV_COP = Notional_USD * (Forward - Strike) * DF_COP_ndf(T_delivery)
+
+The NDF curve is bootstrapped from cop_fwd_points market data via FxSwapRateHelper.
 """
 import QuantLib as ql
 import pandas as pd
@@ -34,22 +36,29 @@ class NdfPricer:
 
     def implied_forward(self, maturity_date: ql.Date, spot: float = None) -> float:
         """
-        Calculate the implied forward FX rate from interest rate parity.
-        F(T) = Spot * DF_COP(T) / DF_USD(T)
+        Calculate the forward FX rate from the NDF-implied COP curve.
+        F(T) = Spot * DF_USD(T) / DF_COP_ndf(T)
+
+        Falls back to IBR/SOFR parity if NDF curve is not built.
 
         Args:
             maturity_date: QL date for the forward
             spot: USD/COP spot rate. If None, uses cm.fx_spot.
 
         Returns:
-            Implied forward USD/COP rate
+            Forward USD/COP rate
         """
         spot = spot or self.cm.fx_spot
         if spot is None:
             raise ValueError("FX spot rate not set. Call cm.set_fx_spot() first.")
 
-        df_cop = self.cm.ibr_handle.discount(maturity_date)
         df_usd = self.cm.sofr_handle.discount(maturity_date)
+
+        # Use NDF curve if available, otherwise fall back to IBR
+        if self.cm.ndf_curve is not None:
+            df_cop = self.cm.ndf_handle.discount(maturity_date)
+        else:
+            df_cop = self.cm.ibr_handle.discount(maturity_date)
 
         return spot * df_usd / df_cop
 
@@ -88,7 +97,12 @@ class NdfPricer:
 
         forward = self.implied_forward(maturity_date, spot)
         df_usd = self.cm.sofr_handle.discount(maturity_date)
-        df_cop = self.cm.ibr_handle.discount(maturity_date)
+
+        # Use NDF curve for COP discounting if available
+        if self.cm.ndf_curve is not None:
+            df_cop = self.cm.ndf_handle.discount(maturity_date)
+        else:
+            df_cop = self.cm.ibr_handle.discount(maturity_date)
 
         npv_cop = sign * notional_usd * (forward - strike) * df_cop
         npv_usd = npv_cop / spot
@@ -107,6 +121,7 @@ class NdfPricer:
             "direction": direction,
             "spot": spot,
             "maturity": ql_to_datetime(maturity_date),
+            "curve_source": "ndf" if self.cm.ndf_curve is not None else "ibr_sofr_parity",
         }
 
     def price_from_market_points(
@@ -131,7 +146,11 @@ class NdfPricer:
         spot = spot or self.cm.fx_spot
         sign = 1.0 if direction == "buy" else -1.0
         df_usd = self.cm.sofr_handle.discount(maturity_date)
-        df_cop = self.cm.ibr_handle.discount(maturity_date)
+
+        if self.cm.ndf_curve is not None:
+            df_cop = self.cm.ndf_handle.discount(maturity_date)
+        else:
+            df_cop = self.cm.ibr_handle.discount(maturity_date)
 
         npv_cop = sign * notional_usd * (market_forward - strike) * df_cop
         npv_usd = npv_cop / spot
@@ -154,7 +173,10 @@ class NdfPricer:
         self, cop_fwd_df: pd.DataFrame, spot: float = None
     ) -> pd.DataFrame:
         """
-        Build an implied forward curve comparing market vs model.
+        Build a forward curve comparing market NDF vs IBR/SOFR parity.
+
+        Shows the NDF basis: how much the market forward deviates from
+        the theoretical interest rate parity forward (IBR/SOFR).
 
         Args:
             cop_fwd_df: DataFrame from cop_fwd_points table
@@ -162,7 +184,8 @@ class NdfPricer:
             spot: USD/COP spot rate
 
         Returns:
-            DataFrame with: tenor, tenor_months, forward_market, forward_implied, basis
+            DataFrame with: tenor, tenor_months, forward_market,
+                           forward_irt_parity, basis
         """
         spot = spot or self.cm.fx_spot
         results = []
@@ -172,15 +195,19 @@ class NdfPricer:
             if months == 0:
                 continue
             mat = self.cm.valuation_date + ql.Period(months, ql.Months)
-            fwd_implied = self.implied_forward(mat, spot)
-            fwd_market = row["mid"]
+            fwd_market = float(row["mid"])
+
+            # IBR/SOFR interest rate parity forward (theoretical)
+            df_usd = self.cm.sofr_handle.discount(mat)
+            df_cop_ibr = self.cm.ibr_handle.discount(mat)
+            fwd_irt = spot * df_usd / df_cop_ibr
 
             results.append({
                 "tenor": row["tenor"],
                 "tenor_months": months,
                 "forward_market": fwd_market,
-                "forward_implied": fwd_implied,
-                "basis": fwd_market - fwd_implied,
+                "forward_irt_parity": fwd_irt,
+                "basis": fwd_market - fwd_irt,
             })
 
         return pd.DataFrame(results)
