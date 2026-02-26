@@ -1,3 +1,10 @@
 fly.toml
 .git/
 *.sqlite3
+node_modules/
+.claude/
+*.pdf
+catalog_*.js
+catalog_*.json
+generate_*.js
+package*.json
