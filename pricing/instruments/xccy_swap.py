@@ -76,8 +76,14 @@ class XccySwapPricer:
         usd_cal = self.cm.sofr_index.fixingCalendar()
         joint_cal = ql.JointCalendar(cop_cal, usd_cal)
 
+        eval_date = ql.Settings.instance().evaluationDate
+        is_midlife = start_date < eval_date
+
+        # For mid-life swaps, build schedule from evaluation_date to avoid
+        # QuantLib "negative time" errors when discounting past dates.
+        schedule_start = eval_date if is_midlife else start_date
         schedule = ql.Schedule(
-            start_date, maturity_date,
+            schedule_start, maturity_date,
             payment_frequency,
             joint_cal,
             ql.ModifiedFollowing, ql.ModifiedFollowing,
@@ -102,14 +108,20 @@ class XccySwapPricer:
         )
 
         # Notional exchange PV
-        usd_notional_pv = (
-            -notional_usd * self.cm.sofr_handle.discount(start_date)
-            + notional_usd * self.cm.sofr_handle.discount(maturity_date)
-        )
-        cop_notional_pv = (
-            notional_cop * self.cm.ibr_handle.discount(start_date)
-            - notional_cop * self.cm.ibr_handle.discount(maturity_date)
-        )
+        # Initial exchange: already settled for mid-life swaps, so PV = 0.
+        # Only the final re-exchange at maturity remains.
+        if is_midlife:
+            usd_notional_pv = notional_usd * self.cm.sofr_handle.discount(maturity_date)
+            cop_notional_pv = -notional_cop * self.cm.ibr_handle.discount(maturity_date)
+        else:
+            usd_notional_pv = (
+                -notional_usd * self.cm.sofr_handle.discount(start_date)
+                + notional_usd * self.cm.sofr_handle.discount(maturity_date)
+            )
+            cop_notional_pv = (
+                notional_cop * self.cm.ibr_handle.discount(start_date)
+                - notional_cop * self.cm.ibr_handle.discount(maturity_date)
+            )
 
         usd_total = usd_leg_value + usd_notional_pv
         cop_total = cop_leg_value + cop_notional_pv
