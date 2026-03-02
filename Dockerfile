@@ -18,4 +18,4 @@ COPY . /code
 
 EXPOSE 8000
 
-CMD ["gunicorn", "--bind", ":8000", "--workers", "2", "xerenity_functions.wsgi"]
+CMD ["gunicorn", "--bind", ":8000", "--workers", "1", "xerenity_functions.wsgi"]

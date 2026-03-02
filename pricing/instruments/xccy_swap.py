@@ -205,8 +205,21 @@ class XccySwapPricer:
         usd_cal = self.cm.sofr_index.fixingCalendar()
         joint_cal = ql.JointCalendar(cop_cal, usd_cal)
 
+        eval_date = ql.Settings.instance().evaluationDate
+        is_midlife = start_date < eval_date
+
+        # For mid-life swaps, build schedule from the latest curve reference
+        # date to avoid QuantLib "negative time" errors. SOFR settles T+2 so
+        # its reference date is typically eval_date + 2 business days, which
+        # is later than eval_date itself.
+        if is_midlife:
+            ibr_ref = self.cm.ibr_handle.currentLink().referenceDate()
+            sofr_ref = self.cm.sofr_handle.currentLink().referenceDate()
+            schedule_start = max(eval_date, ibr_ref, sofr_ref)
+        else:
+            schedule_start = start_date
         schedule = ql.Schedule(
-            start_date, maturity_date,
+            schedule_start, maturity_date,
             payment_frequency,
             joint_cal,
             ql.ModifiedFollowing, ql.ModifiedFollowing,
@@ -236,15 +249,21 @@ class XccySwapPricer:
             ql.Actual360(),
         )
 
-        # Notional exchange PV (includes amortization exchanges)
-        usd_notional_pv = self._notional_exchange_pv_amort(
-            schedule, usd_notionals, self.cm.sofr_handle
-        )
-        cop_notional_pv = self._notional_exchange_pv_amort(
-            schedule, cop_notionals, self.cm.ibr_handle
-        )
-        # COP receives notional at start, pays at end (opposite sign)
-        cop_notional_pv = -cop_notional_pv
+        # Notional exchange PV
+        # Mid-life: initial exchange already settled, only final re-exchange remains.
+        # New swap: full amortization schedule including intermediate exchanges.
+        if is_midlife:
+            usd_notional_pv = notional_usd * self.cm.sofr_handle.discount(maturity_date)
+            cop_notional_pv = -notional_cop * self.cm.ibr_handle.discount(maturity_date)
+        else:
+            usd_notional_pv = self._notional_exchange_pv_amort(
+                schedule, usd_notionals, self.cm.sofr_handle
+            )
+            cop_notional_pv = self._notional_exchange_pv_amort(
+                schedule, cop_notionals, self.cm.ibr_handle
+            )
+            # COP receives notional at start, pays at end (opposite sign)
+            cop_notional_pv = -cop_notional_pv
 
         usd_total = usd_leg_value + usd_notional_pv
         cop_total = cop_leg_value + cop_notional_pv

@@ -23,6 +23,7 @@ from server.pricing_api.schemas import (
     IbrSwapRequest,
     TesBondRequest,
     XccySwapRequest,
+    RepricePortfolioRequest,
 )
 
 router = APIRouter(prefix="/pricing", tags=["pricing"])
@@ -201,20 +202,51 @@ def ibr_par_curve():
 
 @router.post("/tes-bond")
 def price_tes_bond(req: TesBondRequest):
-    """Price a TES bond with full analytics."""
-    _ensure_curves_built()
-    cm = _get_cm()
-    if cm.tes_curve is None:
-        raise HTTPException(400, "TES curve not built. Provide bond data via /curves/build.")
+    """Price a TES bond with full analytics.
 
-    tes = TesBondPricer(cm)
-    result = tes.analytics(
-        issue_date=_parse_date(req.issue_date),
-        maturity_date=_parse_date(req.maturity_date),
-        coupon_rate=req.coupon_rate,
-        market_clean_price=req.market_clean_price,
-        face_value=req.face_value,
-    )
+    Supports two historical-repricing modes (backward compatible — all new params
+    are optional and default to existing behavior):
+
+    1. market_ytm: When provided, uses this YTM directly instead of fetching from
+       the TES curve. The TES curve does NOT need to be built. Ideal for historical
+       marks pricing where the frontend supplies the EOD YTM per bond.
+
+    2. valuation_date: When provided, shifts the QuantLib evaluation date so that
+       accrual, duration, and convexity are computed as of that historical date.
+       Falls back to today when None.
+    """
+    cm = _get_cm()
+
+    # When market_ytm is supplied, we bypass the TES curve entirely.
+    # The bond is still priced relative to its own fixed cash-flows; the caller
+    # provides the market yield (e.g. from xerenity.get_tes_yield_curve_for_date).
+    if req.market_ytm is None:
+        # Standard path: need the TES curve to derive price/yield.
+        _ensure_curves_built()
+        if cm.tes_curve is None:
+            raise HTTPException(400, "TES curve not built. Provide bond data via /curves/build.")
+
+    # Override valuation date when pricing a historical mark.
+    original_eval_date = None
+    if req.valuation_date is not None:
+        original_eval_date = ql.Settings.instance().evaluationDate
+        hist_date = _parse_date(req.valuation_date)
+        cm.set_valuation_date(hist_date)
+
+    try:
+        tes = TesBondPricer(cm)
+        result = tes.analytics(
+            issue_date=_parse_date(req.issue_date),
+            maturity_date=_parse_date(req.maturity_date),
+            coupon_rate=req.coupon_rate,
+            market_clean_price=req.market_clean_price,
+            face_value=req.face_value,
+            market_ytm=req.market_ytm,
+        )
+    finally:
+        # Restore the global evaluation date so we don't affect other requests.
+        if original_eval_date is not None:
+            cm.set_valuation_date(original_eval_date)
 
     if "maturity" in result and hasattr(result["maturity"], "isoformat"):
         result["maturity"] = result["maturity"].isoformat()
@@ -248,3 +280,182 @@ def price_xccy_swap(req: XccySwapRequest):
             result[key] = result[key].isoformat()
 
     return result
+
+
+# ── Portfolio Repricing Endpoint ──
+
+
+def _serialize_portfolio_result(result: dict) -> dict:
+    """Convert datetime/date objects to ISO strings for JSON serialization."""
+    out = {}
+    for k, v in result.items():
+        if hasattr(v, "isoformat"):
+            out[k] = v.isoformat()
+        elif isinstance(v, float):
+            out[k] = round(v, 6) if abs(v) < 1e12 else round(v, 2)
+        else:
+            out[k] = v
+    return out
+
+
+@router.post("/reprice-portfolio")
+def reprice_portfolio(req: RepricePortfolioRequest):
+    """Reprice a portfolio of derivatives (XCCY swaps, NDFs, IBR swaps).
+
+    Supports optional historical repricing via valuation_date (backward compatible):
+
+    - When valuation_date is None: uses currently loaded curves (existing behavior).
+    - When valuation_date is provided: rebuilds all curves from EOD market data for
+      that date (IBR, SOFR, FX spot) before pricing, then restores the original state.
+
+    All position lists default to empty, so callers can send only the instrument
+    types they hold.
+
+    Returns:
+        dict with per-instrument results and portfolio summary NPV.
+    """
+    cm = _get_cm()
+    loader = _get_loader()
+
+    # ── Historical repricing: rebuild curves for the requested date ──
+    original_eval_date = None
+    original_ibr_market = None
+    original_sofr_market = None
+    original_fx_spot = None
+    curves_rebuilt_for_history = False
+
+    if req.valuation_date is not None:
+        # Save current state so we can restore after pricing.
+        original_eval_date = ql.Settings.instance().evaluationDate
+        original_ibr_market = dict(cm._ibr_market)
+        original_sofr_market = dict(cm._sofr_market)
+        original_fx_spot = cm.fx_spot
+
+        # Set valuation date.
+        hist_date = _parse_date(req.valuation_date)
+        cm.set_valuation_date(hist_date)
+
+        # Fetch historical market data for the requested date and rebuild curves.
+        ibr_data = loader.fetch_ibr_quotes(target_date=req.valuation_date)
+        if ibr_data:
+            cm.build_ibr_curve(ibr_data)
+
+        sofr_data = loader.fetch_sofr_curve(target_date=req.valuation_date)
+        if not sofr_data.empty:
+            cm.build_sofr_curve(sofr_data)
+
+        fx = loader.fetch_usdcop_spot(target_date=req.valuation_date)
+        if fx:
+            cm.set_fx_spot(fx)
+
+        curves_rebuilt_for_history = True
+
+    try:
+        _ensure_curves_built()
+
+        xccy_pricer = XccySwapPricer(cm)
+        ndf_pricer = NdfPricer(cm)
+        ibr_pricer = IbrSwapPricer(cm)
+
+        xccy_results = []
+        ndf_results = []
+        ibr_results = []
+
+        total_npv_cop = 0.0
+
+        # Price XCCY swaps
+        for pos in req.xccy_positions:
+            result = xccy_pricer.price(
+                notional_usd=pos.notional_usd,
+                start_date=_parse_date(pos.start_date),
+                maturity_date=_parse_date(pos.maturity_date),
+                xccy_basis_bps=pos.xccy_basis_bps,
+                pay_usd=pos.pay_usd,
+                fx_initial=pos.fx_initial,
+                cop_spread_bps=pos.cop_spread_bps,
+                usd_spread_bps=pos.usd_spread_bps,
+            )
+            serialized = _serialize_portfolio_result(result)
+            if pos.position_id is not None:
+                serialized["position_id"] = pos.position_id
+            xccy_results.append(serialized)
+            total_npv_cop += result.get("npv_cop", 0.0)
+
+        # Price NDFs
+        for pos in req.ndf_positions:
+            mat = _parse_date(pos.maturity_date)
+            if pos.use_market_forward and pos.market_forward is not None:
+                result = ndf_pricer.price_from_market_points(
+                    notional_usd=pos.notional_usd,
+                    strike=pos.strike,
+                    maturity_date=mat,
+                    market_forward=pos.market_forward,
+                    direction=pos.direction,
+                    spot=pos.spot,
+                )
+            else:
+                result = ndf_pricer.price(
+                    notional_usd=pos.notional_usd,
+                    strike=pos.strike,
+                    maturity_date=mat,
+                    direction=pos.direction,
+                    spot=pos.spot,
+                )
+            serialized = _serialize_portfolio_result(result)
+            if pos.position_id is not None:
+                serialized["position_id"] = pos.position_id
+            ndf_results.append(serialized)
+            total_npv_cop += result.get("npv_cop", 0.0)
+
+        # Price IBR swaps
+        for pos in req.ibr_swap_positions:
+            if pos.tenor_years is not None:
+                tenor = ql.Period(pos.tenor_years, ql.Years)
+                result = ibr_pricer.price(
+                    pos.notional, tenor, pos.fixed_rate, pos.pay_fixed, pos.spread
+                )
+            elif pos.maturity_date is not None:
+                mat = _parse_date(pos.maturity_date)
+                result = ibr_pricer.price(
+                    pos.notional, mat, pos.fixed_rate, pos.pay_fixed, pos.spread
+                )
+            else:
+                raise HTTPException(
+                    400,
+                    f"IBR swap position '{pos.position_id}' requires "
+                    "either tenor_years or maturity_date.",
+                )
+            serialized = _serialize_portfolio_result(result)
+            if pos.position_id is not None:
+                serialized["position_id"] = pos.position_id
+            ibr_results.append(serialized)
+            # IBR NPV is already in COP.
+            total_npv_cop += result.get("npv", 0.0)
+
+        fx_spot_used = cm.fx_spot
+        return {
+            "valuation_date": req.valuation_date,
+            "fx_spot": fx_spot_used,
+            "xccy_swaps": xccy_results,
+            "ndfs": ndf_results,
+            "ibr_swaps": ibr_results,
+            "total_npv_cop": round(total_npv_cop, 2),
+            "total_npv_usd": round(total_npv_cop / fx_spot_used, 2) if fx_spot_used else None,
+        }
+
+    finally:
+        # Restore original curves and evaluation date so the singleton is not
+        # left in the historical state for subsequent requests.
+        if curves_rebuilt_for_history:
+            cm.set_valuation_date(original_eval_date)
+            if original_ibr_market:
+                # Rebuild curves from original market data to restore the handle.
+                loader_ibr = loader.fetch_ibr_quotes()
+                if loader_ibr:
+                    cm.build_ibr_curve(loader_ibr)
+            if original_sofr_market:
+                loader_sofr = loader.fetch_sofr_curve()
+                if not loader_sofr.empty:
+                    cm.build_sofr_curve(loader_sofr)
+            if original_fx_spot is not None:
+                cm.set_fx_spot(original_fx_spot)
