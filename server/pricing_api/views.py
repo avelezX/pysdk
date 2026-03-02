@@ -225,24 +225,52 @@ def pricing_ibr_par_curve(request):
 
 @csrf_exempt
 def pricing_tes_bond(request):
-    """Price a TES bond with full analytics."""
-    err = _ensure_curves()
-    if err:
-        return err
+    """Price a TES bond with full analytics.
 
+    Supports two historical-repricing modes (backward compatible — all new params
+    are optional and default to existing behavior):
+
+    1. market_ytm: When provided, uses this YTM directly instead of fetching from
+       the TES curve. The TES curve does NOT need to be built. Ideal for historical
+       marks pricing where the frontend supplies the EOD YTM per bond.
+
+    2. valuation_date: When provided, shifts the QuantLib evaluation date so that
+       accrual, duration, and convexity are computed as of that historical date.
+       Falls back to today when None.
+    """
     cm = _get_cm()
-    if cm.tes_curve is None:
-        return responseHttpError("TES curve not built", 400)
-
     body = json.loads(request.body)
-    tes = TesBondPricer(cm)
-    result = tes.analytics(
-        issue_date=_parse_date(body["issue_date"]),
-        maturity_date=_parse_date(body["maturity_date"]),
-        coupon_rate=body["coupon_rate"],
-        market_clean_price=body.get("market_clean_price"),
-        face_value=body.get("face_value", 100.0),
-    )
+
+    market_ytm = body.get("market_ytm")
+    valuation_date_str = body.get("valuation_date")
+
+    # When market_ytm is supplied, we bypass the TES curve entirely.
+    if market_ytm is None:
+        err = _ensure_curves()
+        if err:
+            return err
+        if cm.tes_curve is None:
+            return responseHttpError("TES curve not built", 400)
+
+    original_eval_date = None
+    if valuation_date_str is not None:
+        original_eval_date = ql.Settings.instance().evaluationDate
+        hist_date = _parse_date(valuation_date_str)
+        cm.set_valuation_date(hist_date)
+
+    try:
+        tes = TesBondPricer(cm)
+        result = tes.analytics(
+            issue_date=_parse_date(body["issue_date"]),
+            maturity_date=_parse_date(body["maturity_date"]),
+            coupon_rate=body["coupon_rate"],
+            market_clean_price=body.get("market_clean_price"),
+            face_value=body.get("face_value", 100.0),
+            market_ytm=market_ytm,
+        )
+    finally:
+        if original_eval_date is not None:
+            cm.set_valuation_date(original_eval_date)
 
     return responseHttpOk(_serialize(result))
 
@@ -272,3 +300,161 @@ def pricing_xccy_swap(request):
     )
 
     return responseHttpOk(_serialize(result))
+
+
+# ── Portfolio Repricing ──
+
+@csrf_exempt
+def pricing_reprice_portfolio(request):
+    """Reprice a portfolio of derivatives (XCCY swaps, NDFs, IBR swaps).
+
+    Supports optional historical repricing via valuation_date (backward compatible):
+
+    - When valuation_date is None: uses currently loaded curves (existing behavior).
+    - When valuation_date is provided: rebuilds all curves from EOD market data for
+      that date (IBR, SOFR, FX spot) before pricing, then restores the original state.
+
+    Request body (all position lists optional, default to []):
+        xccy_positions: list of XCCY position objects
+        ndf_positions: list of NDF position objects
+        ibr_swap_positions: list of IBR swap position objects
+        valuation_date: ISO date string YYYY-MM-DD (optional)
+    """
+    cm = _get_cm()
+    loader = _get_loader()
+    body = json.loads(request.body) if request.body else {}
+
+    valuation_date_str = body.get("valuation_date")
+
+    original_eval_date = None
+    original_ibr_market = None
+    original_sofr_market = None
+    original_fx_spot = None
+    curves_rebuilt_for_history = False
+
+    if valuation_date_str is not None:
+        original_eval_date = ql.Settings.instance().evaluationDate
+        original_ibr_market = dict(cm._ibr_market)
+        original_sofr_market = dict(cm._sofr_market)
+        original_fx_spot = cm.fx_spot
+
+        hist_date = _parse_date(valuation_date_str)
+        cm.set_valuation_date(hist_date)
+
+        ibr_data = loader.fetch_ibr_quotes(target_date=valuation_date_str)
+        if ibr_data:
+            cm.build_ibr_curve(ibr_data)
+
+        sofr_data = loader.fetch_sofr_curve(target_date=valuation_date_str)
+        if not sofr_data.empty:
+            cm.build_sofr_curve(sofr_data)
+
+        fx = loader.fetch_usdcop_spot(target_date=valuation_date_str)
+        if fx:
+            cm.set_fx_spot(fx)
+
+        curves_rebuilt_for_history = True
+
+    try:
+        err = _ensure_curves()
+        if err:
+            return err
+
+        xccy_pricer = XccySwapPricer(cm)
+        ndf_pricer = NdfPricer(cm)
+        ibr_pricer = IbrSwapPricer(cm)
+
+        xccy_results = []
+        ndf_results = []
+        ibr_results = []
+        total_npv_cop = 0.0
+
+        for pos in body.get("xccy_positions", []):
+            result = xccy_pricer.price(
+                notional_usd=pos["notional_usd"],
+                start_date=_parse_date(pos["start_date"]),
+                maturity_date=_parse_date(pos["maturity_date"]),
+                xccy_basis_bps=pos.get("xccy_basis_bps", 0.0),
+                pay_usd=pos.get("pay_usd", True),
+                fx_initial=pos.get("fx_initial"),
+                cop_spread_bps=pos.get("cop_spread_bps", 0.0),
+                usd_spread_bps=pos.get("usd_spread_bps", 0.0),
+            )
+            row = _serialize(result)
+            if pos.get("position_id"):
+                row["position_id"] = pos["position_id"]
+            xccy_results.append(row)
+            total_npv_cop += result.get("npv_cop", 0.0)
+
+        for pos in body.get("ndf_positions", []):
+            mat = _parse_date(pos["maturity_date"])
+            if pos.get("use_market_forward") and pos.get("market_forward"):
+                result = ndf_pricer.price_from_market_points(
+                    notional_usd=pos["notional_usd"],
+                    strike=pos["strike"],
+                    maturity_date=mat,
+                    market_forward=pos["market_forward"],
+                    direction=pos.get("direction", "buy"),
+                    spot=pos.get("spot"),
+                )
+            else:
+                result = ndf_pricer.price(
+                    notional_usd=pos["notional_usd"],
+                    strike=pos["strike"],
+                    maturity_date=mat,
+                    direction=pos.get("direction", "buy"),
+                    spot=pos.get("spot"),
+                )
+            row = _serialize(result)
+            if pos.get("position_id"):
+                row["position_id"] = pos["position_id"]
+            ndf_results.append(row)
+            total_npv_cop += result.get("npv_cop", 0.0)
+
+        for pos in body.get("ibr_swap_positions", []):
+            if pos.get("tenor_years"):
+                tenor = ql.Period(int(pos["tenor_years"]), ql.Years)
+                result = ibr_pricer.price(
+                    pos["notional"], tenor, pos["fixed_rate"],
+                    pos.get("pay_fixed", True), pos.get("spread", 0.0),
+                )
+            elif pos.get("maturity_date"):
+                mat = _parse_date(pos["maturity_date"])
+                result = ibr_pricer.price(
+                    pos["notional"], mat, pos["fixed_rate"],
+                    pos.get("pay_fixed", True), pos.get("spread", 0.0),
+                )
+            else:
+                return responseHttpError(
+                    f"IBR swap position '{pos.get('position_id', '?')}' requires "
+                    "either tenor_years or maturity_date.",
+                    400,
+                )
+            row = _serialize(result)
+            if pos.get("position_id"):
+                row["position_id"] = pos["position_id"]
+            ibr_results.append(row)
+            total_npv_cop += result.get("npv", 0.0)
+
+        fx_spot_used = cm.fx_spot
+        return responseHttpOk({
+            "valuation_date": valuation_date_str,
+            "fx_spot": fx_spot_used,
+            "xccy_swaps": xccy_results,
+            "ndfs": ndf_results,
+            "ibr_swaps": ibr_results,
+            "total_npv_cop": round(total_npv_cop, 2),
+            "total_npv_usd": round(total_npv_cop / fx_spot_used, 2) if fx_spot_used else None,
+        })
+
+    finally:
+        if curves_rebuilt_for_history:
+            cm.set_valuation_date(original_eval_date)
+            loader_ibr = loader.fetch_ibr_quotes()
+            if loader_ibr:
+                cm.build_ibr_curve(loader_ibr)
+            loader_sofr = loader.fetch_sofr_curve()
+            if not loader_sofr.empty:
+                cm.build_sofr_curve(loader_sofr)
+            if original_fx_spot is not None:
+                cm.set_fx_spot(original_fx_spot)

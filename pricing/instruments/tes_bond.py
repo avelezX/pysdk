@@ -80,6 +80,7 @@ class TesBondPricer:
         coupon_rate: float,
         market_clean_price: float = None,
         face_value: float = 100.0,
+        market_ytm: float = None,
     ) -> dict:
         """
         Compute full analytics for a TES bond.
@@ -88,25 +89,44 @@ class TesBondPricer:
             issue_date: Bond issuance date
             maturity_date: Bond maturity date
             coupon_rate: Annual coupon rate as decimal
-            market_clean_price: If provided, used to compute YTM.
+            market_clean_price: If provided, used to compute YTM from price.
             face_value: Face value
+            market_ytm: If provided, use directly as the YTM (decimal, e.g. 0.0925).
+                        Takes precedence over market_clean_price for risk metrics.
+                        Enables historical pricing with EOD marks without needing
+                        the TES curve to be built.
 
         Returns:
             dict with all analytics
         """
         bond = self.create_bond(issue_date, maturity_date, coupon_rate, face_value)
 
-        clean_price = bond.cleanPrice()
-        dirty_price = bond.dirtyPrice()
         accrued = bond.accruedAmount()
-        npv = bond.NPV()
 
-        if market_clean_price is not None:
+        if market_ytm is not None:
+            # Use the provided YTM directly — decouples pricer from TES curve.
+            # This is the historical marks path: the caller supplies the EOD YTM
+            # (e.g. from xerenity.get_tes_yield_curve_for_date).
+            ytm = market_ytm
+            clean_price = ql.BondFunctions.cleanPrice(
+                bond,
+                ql.InterestRate(ytm, ql.Actual36525(), ql.Compounded, ql.Annual),
+            )
+            dirty_price = clean_price + accrued
+            npv = dirty_price * face_value / 100.0
+            price_for_risk = clean_price
+        elif market_clean_price is not None:
+            clean_price = bond.cleanPrice()
+            dirty_price = bond.dirtyPrice()
+            npv = bond.NPV()
             ytm = bond.bondYield(
                 market_clean_price, ql.Actual36525(), ql.Compounded, ql.Annual
             )
             price_for_risk = market_clean_price
         else:
+            clean_price = bond.cleanPrice()
+            dirty_price = bond.dirtyPrice()
+            npv = bond.NPV()
             ytm = bond.bondYield(
                 clean_price, ql.Actual36525(), ql.Compounded, ql.Annual
             )
