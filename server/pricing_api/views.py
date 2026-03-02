@@ -7,7 +7,7 @@ It gets initialized on the first /pricing/curves/build call.
 """
 import json
 import QuantLib as ql
-from datetime import datetime
+from datetime import datetime, date
 from django.views.decorators.csrf import csrf_exempt
 from server.main_server import responseHttpOk, responseHttpError
 
@@ -16,8 +16,8 @@ from pricing.data.market_data import MarketDataLoader
 from pricing.instruments.ndf import NdfPricer
 from pricing.instruments.ibr_swap import IbrSwapPricer
 from pricing.instruments.tes_bond import TesBondPricer
-from pricing.instruments.xccy_swap import XccySwapPricer
-from utilities.date_functions import datetime_to_ql
+from pricing.instruments.xccy_swap import XccySwapPricer, build_amortization_schedule
+from utilities.date_functions import datetime_to_ql, ql_to_datetime
 
 # Module-level singletons
 _cm = None
@@ -445,6 +445,457 @@ def pricing_reprice_portfolio(request):
             "ibr_swaps": ibr_results,
             "total_npv_cop": round(total_npv_cop, 2),
             "total_npv_usd": round(total_npv_cop / fx_spot_used, 2) if fx_spot_used else None,
+        })
+
+    finally:
+        if curves_rebuilt_for_history:
+            cm.set_valuation_date(original_eval_date)
+            loader_ibr = loader.fetch_ibr_quotes()
+            if loader_ibr:
+                cm.build_ibr_curve(loader_ibr)
+            loader_sofr = loader.fetch_sofr_curve()
+            if not loader_sofr.empty:
+                cm.build_sofr_curve(loader_sofr)
+            if original_fx_spot is not None:
+                cm.set_fx_spot(original_fx_spot)
+
+
+# ── Full Portfolio Reprice — carry, DV01, P&L per position ──
+
+def _ql_date_to_str(d: ql.Date) -> str:
+    return date(d.year(), d.month(), d.dayOfMonth()).isoformat()
+
+
+def _overnight_rates(cm) -> tuple:
+    """Return (ibr_overnight, sofr_overnight) as decimals from the curves."""
+    eval_date = ql.Settings.instance().evaluationDate
+    next_day = eval_date + 1
+    day_count = ql.Actual360()
+    try:
+        ibr_overnight = cm.ibr_handle.forwardRate(
+            eval_date, next_day, day_count, ql.Continuous
+        ).rate()
+    except Exception:
+        ibr_overnight = 0.0
+    try:
+        sofr_overnight = cm.sofr_handle.forwardRate(
+            eval_date, next_day, day_count, ql.Continuous
+        ).rate()
+    except Exception:
+        sofr_overnight = 0.0
+    return ibr_overnight, sofr_overnight
+
+
+def _price_ndf_full(ndf_pricer, pos: dict, cm, ibr_overnight: float, sofr_overnight: float) -> dict:
+    """Price an NDF and compute carry, DV01, FX risk."""
+    mat = _parse_date(pos["maturity_date"])
+    direction = pos.get("direction", "buy")
+    notional_usd = pos["notional_usd"]
+    strike = pos["strike"]
+    spot_override = pos.get("spot")
+
+    result = ndf_pricer.price(
+        notional_usd=notional_usd,
+        strike=strike,
+        maturity_date=mat,
+        direction=direction,
+        spot=spot_override,
+    )
+    npv_cop = result["npv_cop"]
+    df_cop = result["df_cop"]
+    df_usd = result["df_usd"]
+    spot = result["spot"]
+    sign = 1.0 if direction == "buy" else -1.0
+
+    # Days to maturity
+    eval_date = ql.Settings.instance().evaluationDate
+    eval_py = date(eval_date.year(), eval_date.month(), eval_date.dayOfMonth())
+    mat_py = date(mat.year(), mat.month(), mat.dayOfMonth())
+    days_to_maturity = max(0, (mat_py - eval_py).days)
+
+    # Daily carry: theta from rate differential
+    # For buy-USD NDF: carry = notional * spot * (r_ibr - r_sofr) / 365
+    carry_cop_daily = sign * notional_usd * spot * (ibr_overnight - sofr_overnight) / 365
+    carry_usd_daily = carry_cop_daily / spot if spot else 0.0
+
+    # DV01 IBR: bump +1bp → reprice → diff (in COP)
+    cm.bump_ibr(1.0)
+    r_ibr_bump = ndf_pricer.price(
+        notional_usd=notional_usd, strike=strike,
+        maturity_date=mat, direction=direction, spot=spot_override,
+    )
+    cm.bump_ibr(-1.0)
+    dv01_cop = r_ibr_bump["npv_cop"] - npv_cop
+
+    # DV01 SOFR: bump +1bp → reprice → diff (in COP)
+    cm.bump_sofr(1.0)
+    r_sofr_bump = ndf_pricer.price(
+        notional_usd=notional_usd, strike=strike,
+        maturity_date=mat, direction=direction, spot=spot_override,
+    )
+    cm.bump_sofr(-1.0)
+    dv01_usd_curve = r_sofr_bump["npv_cop"] - npv_cop
+
+    # FX risk: d(NPV_COP)/d(spot) = sign * N * df_usd
+    fx_delta = sign * notional_usd * df_usd
+    fx_exposure_usd = sign * notional_usd * df_usd
+
+    out = _serialize(result)
+    out["days_to_maturity"] = days_to_maturity
+    out["carry_cop_daily"] = round(carry_cop_daily, 2)
+    out["carry_usd_daily"] = round(carry_usd_daily, 4)
+    out["dv01_cop"] = round(dv01_cop, 2)
+    out["dv01_usd"] = round(dv01_usd_curve, 2)
+    out["dv01_total"] = round(dv01_cop + dv01_usd_curve, 2)
+    out["fx_delta"] = round(fx_delta, 2)
+    out["fx_exposure_usd"] = round(fx_exposure_usd, 2)
+    return out
+
+
+def _price_ibr_full(ibr_pricer, pos: dict, cm, ibr_overnight: float) -> dict:
+    """Price an IBR swap and compute carry metrics."""
+    notional = pos["notional"]
+    fixed_rate = pos["fixed_rate"]
+    pay_fixed = pos.get("pay_fixed", True)
+    spread_bps = pos.get("spread_bps", 0.0)
+    spread = spread_bps / 10000.0 if spread_bps else pos.get("spread", 0.0)
+
+    if pos.get("maturity_date"):
+        mat = _parse_date(pos["maturity_date"])
+        result = ibr_pricer.price(notional, mat, fixed_rate, pay_fixed, spread)
+    else:
+        tenor = ql.Period(int(pos["tenor_years"]), ql.Years)
+        result = ibr_pricer.price(notional, tenor, fixed_rate, pay_fixed, spread)
+
+    # Carry: daily differential between IBR overnight and fixed rate
+    sign_carry = 1.0 if pay_fixed else -1.0
+    ibr_overnight_pct = ibr_overnight * 100
+    carry_daily_cop = notional * (ibr_overnight - fixed_rate) * sign_carry / 365
+    carry_daily_diff_bps = (ibr_overnight - fixed_rate) * 10000 * sign_carry
+
+    # Period carry (approximate using fair rate as proxy for next-period IBR)
+    fair_rate = result.get("fair_rate", ibr_overnight)
+    ibr_fwd_period_pct = fair_rate * 100
+    carry_period_diff_bps = (ibr_overnight - fixed_rate) * 10000 * sign_carry
+    carry_period_cop = notional * (ibr_overnight - fixed_rate) * sign_carry
+
+    out = _serialize(result)
+    out["ibr_overnight_pct"] = round(ibr_overnight_pct, 4)
+    out["carry_daily_cop"] = round(carry_daily_cop, 2)
+    out["carry_daily_diff_bps"] = round(carry_daily_diff_bps, 2)
+    out["ibr_fwd_period_pct"] = round(ibr_fwd_period_pct, 4)
+    out["carry_period_cop"] = round(carry_period_cop, 2)
+    out["carry_period_diff_bps"] = round(carry_period_diff_bps, 2)
+    return out
+
+
+def _xccy_cashflows(cm, schedule, usd_notionals: list, cop_notionals: list,
+                    cop_spread: float, usd_spread: float) -> list:
+    """Build per-period cashflow schedule for an XCCY swap."""
+    day_counter = ql.Actual360()
+    dates = list(schedule)
+    cashflows = []
+    initial_usd = usd_notionals[0] if usd_notionals else 1.0
+    n_periods = len(dates) - 1
+
+    for i in range(1, len(dates)):
+        start = dates[i - 1]
+        end = dates[i]
+        notional_usd_i = usd_notionals[i - 1] if i - 1 < len(usd_notionals) else 0.0
+        notional_cop_i = cop_notionals[i - 1] if i - 1 < len(cop_notionals) else 0.0
+        remaining_pct = notional_usd_i / initial_usd if initial_usd else 1.0
+
+        try:
+            usd_fwd = cm.sofr_handle.forwardRate(start, end, day_counter, ql.Simple).rate()
+            cop_fwd = cm.ibr_handle.forwardRate(start, end, day_counter, ql.Simple).rate()
+        except Exception:
+            usd_fwd = 0.0
+            cop_fwd = 0.0
+
+        tau = day_counter.yearFraction(start, end)
+        usd_rate = usd_fwd + usd_spread
+        cop_rate = cop_fwd + cop_spread
+        usd_interest = notional_usd_i * usd_rate * tau
+        cop_interest = notional_cop_i * cop_rate * tau
+
+        # Amortization principal at period end
+        if i < n_periods:
+            usd_principal = (usd_notionals[i - 1] - usd_notionals[i]) if i < len(usd_notionals) else 0.0
+            cop_principal = (cop_notionals[i - 1] - cop_notionals[i]) if i < len(cop_notionals) else 0.0
+        else:
+            usd_principal = usd_notionals[-1] if usd_notionals else 0.0
+            cop_principal = cop_notionals[-1] if cop_notionals else 0.0
+
+        usd_df = cm.sofr_handle.discount(end)
+        cop_df = cm.ibr_handle.discount(end)
+        net_cop = cop_interest - usd_interest * cm.fx_spot if cm.fx_spot else 0.0
+
+        cashflows.append({
+            "period": i,
+            "start": _ql_date_to_str(start),
+            "end": _ql_date_to_str(end),
+            "payment_date": _ql_date_to_str(end),
+            "notional_usd": round(notional_usd_i, 2),
+            "notional_cop": round(notional_cop_i, 2),
+            "remaining_pct": round(remaining_pct, 4),
+            "usd_rate": round(usd_rate, 6),
+            "cop_rate": round(cop_rate, 6),
+            "usd_interest": round(usd_interest, 2),
+            "cop_interest": round(cop_interest, 2),
+            "usd_principal": round(usd_principal, 2),
+            "cop_principal": round(cop_principal, 2),
+            "usd_df": round(usd_df, 6),
+            "cop_df": round(cop_df, 6),
+            "net_cop": round(net_cop, 2),
+        })
+    return cashflows
+
+
+def _price_xccy_full(xccy_pricer, pos: dict, cm, ibr_overnight: float, sofr_overnight: float) -> dict:
+    """Price an XCCY swap with carry, DV01, P&L, and cashflows."""
+    kwargs = dict(
+        notional_usd=pos["notional_usd"],
+        start_date=_parse_date(pos["start_date"]),
+        maturity_date=_parse_date(pos["maturity_date"]),
+        pay_usd=pos.get("pay_usd", True),
+        fx_initial=pos.get("fx_initial"),
+        cop_spread_bps=pos.get("cop_spread_bps", 0.0),
+        usd_spread_bps=pos.get("usd_spread_bps", 0.0),
+        amortization_type=pos.get("amortization_type", "bullet"),
+        amortization_schedule=pos.get("amortization_schedule"),
+    )
+
+    result = xccy_pricer.price(**kwargs)
+    npv_cop = result["npv_cop"]
+    spot = cm.fx_spot
+    sign = 1.0 if pos.get("pay_usd", True) else -1.0
+
+    # P&L from inception decomposition
+    try:
+        pnl = xccy_pricer.pnl_inception(**kwargs)
+        pnl_rate_cop = pnl.get("pnl_rates_cop", 0.0)
+        pnl_fx_cop = pnl.get("pnl_fx_cop", 0.0)
+    except Exception:
+        pnl_rate_cop = 0.0
+        pnl_fx_cop = 0.0
+    pnl_rate_usd = pnl_rate_cop / spot if spot else 0.0
+    pnl_fx_usd = pnl_fx_cop / spot if spot else 0.0
+
+    # DV01 IBR: bump +1bp
+    cm.bump_ibr(1.0)
+    result_ibr = xccy_pricer.price(**kwargs)
+    cm.bump_ibr(-1.0)
+    dv01_ibr = result_ibr["npv_cop"] - npv_cop
+
+    # DV01 SOFR: bump +1bp
+    cm.bump_sofr(1.0)
+    result_sofr = xccy_pricer.price(**kwargs)
+    cm.bump_sofr(-1.0)
+    dv01_sofr = result_sofr["npv_cop"] - npv_cop
+
+    # FX risk: d(NPV_COP)/d(spot) = sign * (-usd_total) * 1
+    usd_total = result.get("usd_total", 0.0)
+    fx_delta = sign * (-usd_total)
+    fx_exposure_usd = sign * usd_total
+
+    # Carry: overnight differential on notional COP
+    notional_cop = result.get("notional_cop", 0.0)
+    carry_cop = sign * notional_cop * (ibr_overnight - sofr_overnight) / 365
+    carry_usd = carry_cop / spot if spot else 0.0
+    carry_rate_cop_pct = ibr_overnight * 100
+    carry_rate_usd_pct = sofr_overnight * 100
+    carry_differential_bps = (ibr_overnight - sofr_overnight) * 10000
+
+    # Par basis
+    try:
+        par_basis_bps = xccy_pricer.par_xccy_basis(
+            notional_usd=pos["notional_usd"],
+            start_date=_parse_date(pos["start_date"]),
+            maturity_date=_parse_date(pos["maturity_date"]),
+            fx_initial=pos.get("fx_initial"),
+            amortization_type=pos.get("amortization_type", "bullet"),
+            amortization_schedule=pos.get("amortization_schedule"),
+        )
+    except Exception:
+        par_basis_bps = None
+
+    # Build cashflow schedule
+    try:
+        start_ql = _parse_date(pos["start_date"])
+        mat_ql = _parse_date(pos["maturity_date"])
+        eval_date = ql.Settings.instance().evaluationDate
+        is_midlife = start_ql < eval_date
+        cop_cal = cm.ibr_index.fixingCalendar()
+        usd_cal = cm.sofr_index.fixingCalendar()
+        joint_cal = ql.JointCalendar(cop_cal, usd_cal)
+        if is_midlife:
+            ibr_ref = cm.ibr_handle.currentLink().referenceDate()
+            sofr_ref = cm.sofr_handle.currentLink().referenceDate()
+            sched_start = max(eval_date, ibr_ref, sofr_ref)
+        else:
+            sched_start = start_ql
+        schedule = ql.Schedule(
+            sched_start, mat_ql,
+            ql.Period(3, ql.Months),
+            joint_cal,
+            ql.ModifiedFollowing, ql.ModifiedFollowing,
+            ql.DateGeneration.Forward, False,
+        )
+        fx = pos.get("fx_initial") or spot
+        usd_notionals = build_amortization_schedule(
+            schedule, pos["notional_usd"],
+            pos.get("amortization_type", "bullet"),
+            pos.get("amortization_schedule"),
+        )
+        cop_notionals = [n * fx for n in usd_notionals]
+        cop_spread = (pos.get("cop_spread_bps", 0.0)) / 10000.0
+        usd_spread = (pos.get("usd_spread_bps", 0.0)) / 10000.0
+        cashflows = _xccy_cashflows(cm, schedule, usd_notionals, cop_notionals, cop_spread, usd_spread)
+        n_periods = len(cashflows)
+    except Exception:
+        cashflows = []
+        n_periods = 0
+
+    out = _serialize(result)
+    out["pnl_rate_cop"] = round(pnl_rate_cop, 2)
+    out["pnl_rate_usd"] = round(pnl_rate_usd, 4)
+    out["pnl_fx_cop"] = round(pnl_fx_cop, 2)
+    out["pnl_fx_usd"] = round(pnl_fx_usd, 4)
+    out["usd_principal_pv"] = result.get("usd_notional_exchange_pv", 0.0)
+    out["cop_principal_pv"] = result.get("cop_notional_exchange_pv", 0.0)
+    out["carry_cop"] = round(carry_cop, 2)
+    out["carry_usd"] = round(carry_usd, 4)
+    out["carry_rate_cop_pct"] = round(carry_rate_cop_pct, 4)
+    out["carry_rate_usd_pct"] = round(carry_rate_usd_pct, 4)
+    out["carry_differential_bps"] = round(carry_differential_bps, 2)
+    out["dv01_ibr"] = round(dv01_ibr, 2)
+    out["dv01_sofr"] = round(dv01_sofr, 2)
+    out["dv01_total"] = round(dv01_ibr + dv01_sofr, 2)
+    out["fx_delta"] = round(fx_delta, 2)
+    out["fx_exposure_usd"] = round(fx_exposure_usd, 2)
+    out["par_basis_bps"] = round(par_basis_bps, 4) if par_basis_bps is not None else None
+    out["n_periods"] = n_periods
+    out["cashflows"] = cashflows
+    return out
+
+
+@csrf_exempt
+def pricing_portfolio_reprice(request):
+    """Full portfolio reprice: carry, DV01, P&L, cashflows per position.
+
+    Endpoint: POST /pricing/portfolio/reprice
+    Request keys: xccy_positions, ndf_positions, ibr_swap_positions, valuation_date
+    Each position uses 'id' (not 'position_id') for identification.
+
+    Response keys: xccy_results, ndf_results, ibr_swap_results, summary
+    """
+    cm = _get_cm()
+    loader = _get_loader()
+    body = json.loads(request.body) if request.body else {}
+
+    valuation_date_str = body.get("valuation_date")
+    original_eval_date = None
+    original_fx_spot = None
+    curves_rebuilt_for_history = False
+
+    if valuation_date_str is not None:
+        original_eval_date = ql.Settings.instance().evaluationDate
+        original_fx_spot = cm.fx_spot
+
+        hist_date = _parse_date(valuation_date_str)
+        cm.set_valuation_date(hist_date)
+
+        ibr_data = loader.fetch_ibr_quotes(target_date=valuation_date_str)
+        if ibr_data:
+            cm.build_ibr_curve(ibr_data)
+
+        sofr_data = loader.fetch_sofr_curve(target_date=valuation_date_str)
+        if not sofr_data.empty:
+            cm.build_sofr_curve(sofr_data)
+
+        fx = loader.fetch_usdcop_spot(target_date=valuation_date_str)
+        if fx:
+            cm.set_fx_spot(fx)
+
+        curves_rebuilt_for_history = True
+
+    try:
+        err = _ensure_curves()
+        if err:
+            return err
+
+        xccy_pricer = XccySwapPricer(cm)
+        ndf_pricer = NdfPricer(cm)
+        ibr_pricer = IbrSwapPricer(cm)
+
+        ibr_overnight, sofr_overnight = _overnight_rates(cm)
+
+        xccy_results = []
+        ndf_results = []
+        ibr_results = []
+
+        for pos in body.get("ndf_positions", []):
+            pos_id = pos.get("id") or pos.get("position_id")
+            try:
+                row = _price_ndf_full(ndf_pricer, pos, cm, ibr_overnight, sofr_overnight)
+                row["id"] = pos_id
+                ndf_results.append(row)
+            except Exception as exc:
+                ndf_results.append({
+                    "id": pos_id, "error": str(exc),
+                    "npv_cop": 0.0, "npv_usd": 0.0,
+                })
+
+        for pos in body.get("ibr_swap_positions", []):
+            pos_id = pos.get("id") or pos.get("position_id")
+            try:
+                row = _price_ibr_full(ibr_pricer, pos, cm, ibr_overnight)
+                row["id"] = pos_id
+                ibr_results.append(row)
+            except Exception as exc:
+                ibr_results.append({
+                    "id": pos_id, "error": str(exc),
+                    "npv": 0.0,
+                })
+
+        for pos in body.get("xccy_positions", []):
+            pos_id = pos.get("id") or pos.get("position_id")
+            try:
+                row = _price_xccy_full(xccy_pricer, pos, cm, ibr_overnight, sofr_overnight)
+                row["id"] = pos_id
+                xccy_results.append(row)
+            except Exception as exc:
+                xccy_results.append({
+                    "id": pos_id, "error": str(exc),
+                    "npv_cop": 0.0, "npv_usd": 0.0, "cashflows": [],
+                })
+
+        spot = cm.fx_spot or 1.0
+        total_npv_cop = (
+            sum(r.get("npv_cop", 0.0) for r in xccy_results if not r.get("error"))
+            + sum(r.get("npv_cop", 0.0) for r in ndf_results if not r.get("error"))
+            + sum(r.get("npv", 0.0) for r in ibr_results if not r.get("error"))
+        )
+        total_carry_cop = (
+            sum(r.get("carry_cop", 0.0) for r in xccy_results if not r.get("error"))
+            + sum(r.get("carry_cop_daily", 0.0) for r in ndf_results if not r.get("error"))
+            + sum(r.get("carry_daily_cop", 0.0) for r in ibr_results if not r.get("error"))
+        )
+        total_pnl_rate_cop = sum(r.get("pnl_rate_cop", 0.0) for r in xccy_results if not r.get("error"))
+        total_pnl_fx_cop = sum(r.get("pnl_fx_cop", 0.0) for r in xccy_results if not r.get("error"))
+
+        return responseHttpOk({
+            "xccy_results": xccy_results,
+            "ndf_results": ndf_results,
+            "ibr_swap_results": ibr_results,
+            "summary": {
+                "total_npv_cop": round(total_npv_cop, 2),
+                "total_npv_usd": round(total_npv_cop / spot, 2),
+                "total_carry_cop": round(total_carry_cop, 2),
+                "total_carry_usd": round(total_carry_cop / spot, 2),
+                "total_pnl_rate_cop": round(total_pnl_rate_cop, 2),
+                "total_pnl_fx_cop": round(total_pnl_fx_cop, 2),
+            },
         })
 
     finally:
