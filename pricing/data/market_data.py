@@ -6,6 +6,7 @@ import os
 import requests
 import pandas as pd
 from datetime import date, timedelta
+from typing import Optional
 
 
 SUPABASE_URL = os.getenv("XTY_URL")
@@ -38,7 +39,7 @@ class MarketDataLoader:
         resp.raise_for_status()
         return resp.json()
 
-    def _latest_date(self, table: str, date_col: str = "fecha") -> str | None:
+    def _latest_date(self, table: str, date_col: str = "fecha") -> Optional[str]:
         data = self._get(table, f"select={date_col}&order={date_col}.desc&limit=1")
         if data:
             return data[0][date_col]
@@ -159,7 +160,7 @@ class MarketDataLoader:
 
     # ── USD/COP Spot Rate ──
 
-    def fetch_usdcop_spot(self, target_date: str = None) -> float | None:
+    def fetch_usdcop_spot(self, target_date: str = None) -> Optional[float]:
         """
         Fetch latest USD/COP spot rate.
 
@@ -176,7 +177,7 @@ class MarketDataLoader:
             return value
         return self._fetch_usdcop_fwd_points_sn(target_date)
 
-    def _fetch_usdcop_setfx(self, target_date: str = None) -> float | None:
+    def _fetch_usdcop_setfx(self, target_date: str = None) -> Optional[float]:
         """Fetch USD/COP from currency_hour (SET-ICAP). Returns None if no data."""
         if target_date is None:
             data = self._get(
@@ -195,7 +196,7 @@ class MarketDataLoader:
             return float(data[0]["value"])
         return None
 
-    def _fetch_usdcop_fwd_points_sn(self, target_date: str = None) -> float | None:
+    def _fetch_usdcop_fwd_points_sn(self, target_date: str = None) -> Optional[float]:
         """Fallback: fetch USD/COP from cop_fwd_points SN tenor mid (FXEmpire)."""
         if target_date is None:
             target_date = self._latest_date("cop_fwd_points")
@@ -249,7 +250,7 @@ class MarketDataLoader:
 
     # ── US Reference Rates ──
 
-    def fetch_sofr_spot(self, target_date: str = None) -> float | None:
+    def fetch_sofr_spot(self, target_date: str = None) -> Optional[float]:
         """
         Fetch latest SOFR overnight rate from us_reference_rates table.
         Returns rate as decimal (e.g., 0.0430 for 4.30%).

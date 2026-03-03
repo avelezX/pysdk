@@ -35,14 +35,13 @@ jobs:
           XTY_TOKEN:        ${{ secrets.XTY_TOKEN }}
           COLLECTOR_BEARER: ${{ secrets.COLLECTOR_BEARER }}
 
-      - name: Notify Slack on failure
+      - name: Notify Teams on failure
         if: failure()
-        uses: slackapi/slack-github-action@v1.26.0
-        with:
-          payload: |
-            {
-              "text": "compute_marks FAILED — ${{ github.workflow }} / ${{ github.run_id }}"
-            }
+        run: |
+          if [ -n "$TEAMS_WEBHOOK_URL" ]; then
+            curl -s -X POST "$TEAMS_WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -d "{\"text\": \"compute_marks FAILED — ${{ github.workflow }} run ${{ github.run_id }}\"}"
+          fi
         env:
-          SLACK_WEBHOOK_URL:  ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
