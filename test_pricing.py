@@ -52,8 +52,6 @@ ibr_data = {
     "ibr_2y":  [8.00],
     "ibr_5y":  [7.80],
     "ibr_10y": [7.90],
-    "ibr_15y": [8.00],
-    "ibr_20y": [8.05],
 }
 
 ibr_curve, ibr_quotes = build_ibr_curve(ibr_data, val_date)

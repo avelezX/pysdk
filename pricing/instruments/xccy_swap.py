@@ -2,9 +2,9 @@
 USD/COP Cross-Currency Swap pricer.
 
 Structure:
+  - USD leg: Floating SOFR overnight (compounded) + optional spread
   - COP leg: Floating IBR overnight (compounded) + xccy basis spread
-  - USD leg: Floating SOFR overnight (compounded)
-  - Notional exchange at start and end (at initial FX rate)
+  - Notional exchange at start, intermediate amortization returns, and final
 
 Pricing uses dual-curve discounting:
   - COP cashflows discounted with IBR curve
@@ -12,6 +12,11 @@ Pricing uses dual-curve discounting:
   - All values converted to common currency (COP) at FX spot
 
 Supports amortizing notionals via amortization_schedule parameter.
+
+Bancolombia CCS parameterization (typical):
+  The confirmation shows -22bps on the SOFR/USD leg and IBR flat.
+  Use: usd_spread_bps=-22, xccy_basis_bps=0
+  NOT: xccy_basis_bps=-22 (which would put the spread on the COP leg).
 
 Note: QuantLib Python bindings don't expose a native CrossCurrencyBasisSwap.
 This implementation manually computes each leg's PV using forward rates
@@ -173,8 +178,12 @@ class XccySwapPricer:
         """
         Price a cross-currency swap with optional amortization.
 
-        Structure: Pay USD SOFR flat / Receive COP IBR + xccy_basis
+        Structure: Pay USD SOFR + usd_spread / Receive COP IBR + xccy_basis
                    (or reverse if pay_usd=False)
+
+        For Bancolombia CCS confirmations the spread is typically on the
+        SOFR leg (e.g., SOFR - 22bps).  Use usd_spread_bps=-22 and
+        xccy_basis_bps=0.
 
         Args:
             notional_usd: USD notional amount
@@ -184,7 +193,7 @@ class XccySwapPricer:
             pay_usd: If True, we pay USD and receive COP
             fx_initial: FX rate at inception for notional exchange
             cop_spread_bps: Additional spread on COP leg (bps)
-            usd_spread_bps: Additional spread on USD leg (bps)
+            usd_spread_bps: Spread on USD/SOFR leg (bps), e.g. -22 for SOFR-22bps
             payment_frequency: Payment frequency for both legs
             amortization_type: 'bullet' (default), 'linear', or 'custom'
             amortization_schedule: For 'custom', list of notional factors per period
@@ -208,33 +217,56 @@ class XccySwapPricer:
         eval_date = ql.Settings.instance().evaluationDate
         is_midlife = start_date < eval_date
 
-        # For mid-life swaps, build schedule from the latest curve reference
-        # date to avoid QuantLib "negative time" errors. SOFR settles T+2 so
-        # its reference date is typically eval_date + 2 business days, which
-        # is later than eval_date itself.
-        if is_midlife:
-            ibr_ref = self.cm.ibr_handle.currentLink().referenceDate()
-            sofr_ref = self.cm.sofr_handle.currentLink().referenceDate()
-            schedule_start = max(eval_date, ibr_ref, sofr_ref)
-        else:
-            schedule_start = start_date
+        # Always build the schedule from the original start_date so that
+        # payment dates and amortization factors are consistent between
+        # inception and mid-life pricing.  For mid-life, we filter out
+        # past periods after building the full schedule.
+        bdc = ql.Following
         schedule = ql.Schedule(
-            schedule_start, maturity_date,
+            start_date, maturity_date,
             payment_frequency,
             joint_cal,
-            ql.ModifiedFollowing, ql.ModifiedFollowing,
+            bdc, bdc,
             ql.DateGeneration.Forward, False,
         )
 
-        # Build amortization notional arrays
+        # Build amortization notional arrays from the FULL schedule
+        # (preserves correct amortization factors regardless of mid-life)
         usd_notionals = build_amortization_schedule(
             schedule, notional_usd, amortization_type, amortization_schedule
         )
         cop_notionals = [n * fx for n in usd_notionals]
 
+        # For mid-life pricing, determine the first future period.
+        # We need the curve reference dates to avoid "negative time" errors
+        # when asking for discount/forward rates at past dates.
+        full_dates = list(schedule)
+        if is_midlife:
+            sofr_ref = self.cm.sofr_handle.currentLink().referenceDate()
+            ibr_ref = self.cm.ibr_handle.currentLink().referenceDate()
+            curve_floor = max(eval_date, sofr_ref, ibr_ref)
+            # Find the first period whose END date is still in the future.
+            # Replace that period's start with curve_floor so forward rate
+            # queries don't hit negative time.
+            first_future = 0
+            for i in range(1, len(full_dates)):
+                if full_dates[i] > curve_floor:
+                    first_future = i - 1
+                    break
+            future_dates = list(full_dates[first_future:])
+            future_usd = list(usd_notionals[first_future:])
+            future_cop = list(cop_notionals[first_future:])
+            # Clip the start of the first remaining period to curve_floor
+            if future_dates[0] < curve_floor:
+                future_dates[0] = curve_floor
+        else:
+            future_dates = full_dates
+            future_usd = usd_notionals
+            future_cop = cop_notionals
+
         # USD Leg (SOFR floating)
-        usd_leg_value = self._value_ois_leg_amort(
-            schedule, usd_notionals,
+        usd_leg_value = self._value_ois_leg_from_dates(
+            future_dates, future_usd,
             self.cm.sofr_handle,
             usd_spread_bps / 10000.0,
             ql.Actual360(),
@@ -242,41 +274,36 @@ class XccySwapPricer:
 
         # COP Leg (IBR floating + xccy basis)
         total_cop_spread = (xccy_basis_bps + cop_spread_bps) / 10000.0
-        cop_leg_value = self._value_ois_leg_amort(
-            schedule, cop_notionals,
+        cop_leg_value = self._value_ois_leg_from_dates(
+            future_dates, future_cop,
             self.cm.ibr_handle,
             total_cop_spread,
             ql.Actual360(),
         )
 
         # Notional exchange PV
-        # Formula: npv_cop = sign * (-usd_total * spot + cop_total)
-        # So: positive usd_notional_pv SUBTRACTS from NPV (bad for USD receiver).
-        #     negative cop_notional_pv SUBTRACTS from NPV (bad for COP receiver).
-        #
-        # New swap: includes initial exchange now (~today+2d) + all future returns.
-        # Mid-life: initial exchange already settled at trade inception. Only future
-        #   notional returns remain. For both legs, these are NEGATIVE in the formula:
-        #   - USD returns: we RECEIVE USD back → usd_notional_pv must be NEGATIVE
-        #     so that -(usd_notional_pv * spot) is positive (adds to NPV).
-        #   - COP returns: we PAY BACK COP → cop_notional_pv must be NEGATIVE
-        #     so it reduces cop_total (subtracts from NPV).
+        # _notional_exchange_pv_amort returns from the payer's perspective:
+        #   negative = pay out (initial), positive = receive back (amort/final).
+        # For the NPV formula: npv = sign * (-usd_total * spot + cop_total)
+        #   Both legs must be negated so that:
+        #   - usd_notional_pv > 0 means net USD outflow (cost),
+        #     which subtracts via -usd_total * spot.
+        #   - cop_notional_pv > 0 means net COP inflow (benefit).
         if is_midlife:
-            dates = list(schedule)
-            n_periods = len(dates) - 1
+            # Initial exchange already settled; only future returns remain.
+            n_future = len(future_dates) - 1
             usd_notional_pv = 0.0
             cop_notional_pv = 0.0
-            # Intermediate amortization returns
-            for i in range(1, n_periods):
-                usd_amort = usd_notionals[i - 1] - usd_notionals[i]
-                cop_amort = cop_notionals[i - 1] - cop_notionals[i]
+            for i in range(1, n_future):
+                usd_amort = future_usd[i - 1] - future_usd[i]
+                cop_amort = future_cop[i - 1] - future_cop[i]
                 if abs(usd_amort) > 1e-2:
-                    usd_notional_pv -= usd_amort * self.cm.sofr_handle.discount(dates[i])
+                    usd_notional_pv -= usd_amort * self.cm.sofr_handle.discount(future_dates[i])
                 if abs(cop_amort) > 1e-2:
-                    cop_notional_pv -= cop_amort * self.cm.ibr_handle.discount(dates[i])
+                    cop_notional_pv -= cop_amort * self.cm.ibr_handle.discount(future_dates[i])
             # Final notional exchange at maturity
-            usd_notional_pv -= usd_notionals[-1] * self.cm.sofr_handle.discount(dates[-1])
-            cop_notional_pv -= cop_notionals[-1] * self.cm.ibr_handle.discount(dates[-1])
+            usd_notional_pv -= future_usd[-1] * self.cm.sofr_handle.discount(future_dates[-1])
+            cop_notional_pv -= future_cop[-1] * self.cm.ibr_handle.discount(future_dates[-1])
         else:
             usd_notional_pv = self._notional_exchange_pv_amort(
                 schedule, usd_notionals, self.cm.sofr_handle
@@ -284,7 +311,7 @@ class XccySwapPricer:
             cop_notional_pv = self._notional_exchange_pv_amort(
                 schedule, cop_notionals, self.cm.ibr_handle
             )
-            # COP receives notional at start, pays at end (opposite sign)
+            usd_notional_pv = -usd_notional_pv
             cop_notional_pv = -cop_notional_pv
 
         usd_total = usd_leg_value + usd_notional_pv
@@ -326,36 +353,30 @@ class XccySwapPricer:
             fixed_notional=notional,
         )
 
-    def _value_ois_leg_amort(
-        self, schedule, notionals, discount_handle, spread, day_counter,
-        fixed_notional: float = None,
+    def _value_ois_leg_from_dates(
+        self, dates, notionals, discount_handle, spread, day_counter,
     ) -> float:
         """
-        Value a floating OIS leg with per-period notionals.
+        Value a floating OIS leg from a list of period dates and notionals.
 
-        For each period:
+        For each period [dates[i-1], dates[i]]:
           1. Compute forward rate from the curve
           2. Add the spread
           3. Compute accrued amount using period notional
           4. Discount to today
 
         Args:
-            schedule: QuantLib Schedule
-            notionals: List of notional amounts per period, or None
+            dates: List of ql.Date (period boundaries)
+            notionals: List of notional amounts per period (len = len(dates)-1)
             discount_handle: Curve handle for discounting/projection
             spread: Spread over the floating rate (decimal)
             day_counter: Day count convention
-            fixed_notional: If notionals is None, use this fixed notional
         """
         pv = 0.0
-        dates = list(schedule)
         for i in range(1, len(dates)):
             start = dates[i - 1]
             end = dates[i]
-
-            notional = (
-                notionals[i - 1] if notionals is not None else fixed_notional
-            )
+            notional = notionals[i - 1]
 
             fwd_rate = discount_handle.forwardRate(
                 start, end, day_counter, ql.Simple
@@ -367,6 +388,22 @@ class XccySwapPricer:
             pv += cashflow * df
 
         return pv
+
+    def _value_ois_leg_amort(
+        self, schedule, notionals, discount_handle, spread, day_counter,
+        fixed_notional: float = None,
+    ) -> float:
+        """
+        Value a floating OIS leg with per-period notionals.
+        Kept for backward compatibility — delegates to _value_ois_leg_from_dates.
+        """
+        dates = list(schedule)
+        if notionals is None:
+            n = len(dates) - 1
+            notionals = [fixed_notional] * n
+        return self._value_ois_leg_from_dates(
+            dates, notionals, discount_handle, spread, day_counter,
+        )
 
     def _notional_exchange_pv_amort(
         self, schedule, notionals, discount_handle

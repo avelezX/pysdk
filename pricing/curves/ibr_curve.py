@@ -10,7 +10,7 @@ Conventions (from swap_functions/ibr_quantlib_details.py):
   - Interpolation: PiecewiseLogLinearDiscount
 
 Data source: ibr_swaps_cluster table
-  - Tenors: 1D, 1M, 3M, 6M, 12M (deposits), 2Y-20Y (OIS swaps)
+  - Tenors: 1D, 1M, 3M, 6M, 12M (deposits), 2Y-10Y (OIS swaps)
   - Rates in percent (e.g., 9.50 means 9.50%)
 
 Each tenor rate is stored as a ql.SimpleQuote for scenario analysis.
@@ -33,8 +33,6 @@ _TENOR_DEFS = [
     ("ibr_2y", 24, ql.Months, True),
     ("ibr_5y", 60, ql.Months, True),
     ("ibr_10y", 120, ql.Months, True),
-    ("ibr_15y", 180, ql.Months, True),
-    ("ibr_20y", 240, ql.Months, True),
 ]
 
 

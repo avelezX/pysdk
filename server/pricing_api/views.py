@@ -297,6 +297,8 @@ def pricing_xccy_swap(request):
         fx_initial=body.get("fx_initial"),
         cop_spread_bps=body.get("cop_spread_bps", 0.0),
         usd_spread_bps=body.get("usd_spread_bps", 0.0),
+        amortization_type=body.get("amortization_type", "bullet"),
+        amortization_schedule=body.get("amortization_schedule"),
     )
 
     return responseHttpOk(_serialize(result))
@@ -730,7 +732,9 @@ def _price_xccy_full(xccy_pricer, pos: dict, cm, ibr_overnight: float, sofr_over
     except Exception:
         par_basis_bps = None
 
-    # Build cashflow schedule
+    # Build cashflow schedule — always from original start_date so payment
+    # dates and amortization factors match the pricer. For mid-life swaps,
+    # filter out past periods for display but keep the full schedule structure.
     try:
         start_ql = _parse_date(pos["start_date"])
         mat_ql = _parse_date(pos["maturity_date"])
@@ -739,17 +743,11 @@ def _price_xccy_full(xccy_pricer, pos: dict, cm, ibr_overnight: float, sofr_over
         cop_cal = cm.ibr_index.fixingCalendar()
         usd_cal = cm.sofr_index.fixingCalendar()
         joint_cal = ql.JointCalendar(cop_cal, usd_cal)
-        if is_midlife:
-            ibr_ref = cm.ibr_handle.currentLink().referenceDate()
-            sofr_ref = cm.sofr_handle.currentLink().referenceDate()
-            sched_start = max(eval_date, ibr_ref, sofr_ref)
-        else:
-            sched_start = start_ql
         schedule = ql.Schedule(
-            sched_start, mat_ql,
+            start_ql, mat_ql,
             ql.Period(3, ql.Months),
             joint_cal,
-            ql.ModifiedFollowing, ql.ModifiedFollowing,
+            ql.Following, ql.Following,
             ql.DateGeneration.Forward, False,
         )
         fx = pos.get("fx_initial") or spot
@@ -761,7 +759,28 @@ def _price_xccy_full(xccy_pricer, pos: dict, cm, ibr_overnight: float, sofr_over
         cop_notionals = [n * fx for n in usd_notionals]
         cop_spread = (pos.get("cop_spread_bps", 0.0)) / 10000.0
         usd_spread = (pos.get("usd_spread_bps", 0.0)) / 10000.0
-        cashflows = _xccy_cashflows(cm, schedule, usd_notionals, cop_notionals, cop_spread, usd_spread)
+        if is_midlife:
+            # Filter to future periods only for cashflow display
+            ibr_ref = cm.ibr_handle.currentLink().referenceDate()
+            sofr_ref = cm.sofr_handle.currentLink().referenceDate()
+            curve_floor = max(eval_date, ibr_ref, sofr_ref)
+            full_dates = list(schedule)
+            first_future = 0
+            for idx in range(1, len(full_dates)):
+                if full_dates[idx] > curve_floor:
+                    first_future = idx - 1
+                    break
+            future_dates = list(full_dates[first_future:])
+            future_usd = list(usd_notionals[first_future:])
+            future_cop = list(cop_notionals[first_future:])
+            if future_dates[0] < curve_floor:
+                future_dates[0] = curve_floor
+            # Build a filtered schedule for cashflow display
+            future_schedule = ql.Schedule(future_dates, joint_cal,
+                                          ql.Following)
+            cashflows = _xccy_cashflows(cm, future_schedule, future_usd, future_cop, cop_spread, usd_spread)
+        else:
+            cashflows = _xccy_cashflows(cm, schedule, usd_notionals, cop_notionals, cop_spread, usd_spread)
         n_periods = len(cashflows)
     except Exception:
         cashflows = []

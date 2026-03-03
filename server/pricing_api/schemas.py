@@ -65,6 +65,8 @@ class XccySwapRequest(BaseModel):
     fx_initial: Optional[float] = None
     cop_spread_bps: float = 0.0
     usd_spread_bps: float = 0.0
+    amortization_type: str = "bullet"
+    amortization_schedule: Optional[list] = None
 
 
 # ── Position schemas for reprice-portfolio ──

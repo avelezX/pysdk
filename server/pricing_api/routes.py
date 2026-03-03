@@ -273,6 +273,8 @@ def price_xccy_swap(req: XccySwapRequest):
         fx_initial=req.fx_initial,
         cop_spread_bps=req.cop_spread_bps,
         usd_spread_bps=req.usd_spread_bps,
+        amortization_type=req.amortization_type,
+        amortization_schedule=req.amortization_schedule,
     )
 
     for key in ("start_date", "maturity_date"):
