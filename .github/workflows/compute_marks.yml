@@ -1,0 +1,48 @@
+name: Compute Market Marks
+run-name: Computing market marks snapshot
+
+on:
+  workflow_dispatch:   # allow manual trigger
+  schedule:
+    # UTC times — weekdays only
+    # 13:30 UTC = 08:30 COT  after SET-ICAP session opens
+    # 14:30 UTC = 09:30 COT  mid session
+    # 15:30 UTC = 10:30 COT  near SET-ICAP close
+    # 21:30 UTC = 16:30 COT  after FXEmpire + SOFR collectors finish
+    - cron: '30 13 * * 1-5'
+    - cron: '30 14 * * 1-5'
+    - cron: '30 15 * * 1-5'
+    - cron: '30 21 * * 1-5'
+
+jobs:
+  compute_marks:
+    runs-on: ubuntu-latest
+    container:
+      image: avelezxerenity/xerenity:latest
+      options: --cpus 1
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --quiet
+
+      - name: Compute and store marks
+        run: python run_compute_marks.py
+        env:
+          XTY_URL:          ${{ secrets.XTY_URL }}
+          XTY_TOKEN:        ${{ secrets.XTY_TOKEN }}
+          COLLECTOR_BEARER: ${{ secrets.COLLECTOR_BEARER }}
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "compute_marks FAILED — ${{ github.workflow }} / ${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL:  ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
