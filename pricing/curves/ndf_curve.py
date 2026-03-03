@@ -43,7 +43,7 @@ def build_ndf_curve(
 
     Args:
         cop_fwd_df: DataFrame from cop_fwd_points with columns:
-                    tenor, tenor_months, fwd_points
+                    tenor, tenor_months, mid
         spot: USD/COP spot rate from SET-ICAP (currency_hour table)
         sofr_handle: YieldTermStructureHandle linked to SOFR curve
         valuation_date: QL valuation date
@@ -75,10 +75,10 @@ def build_ndf_curve(
         mat = calendar.advance(
             valuation_date, ql.Period(months, ql.Months), ql.Following
         )
-        # Reconstruct outright forward from SET-ICAP spot + FXEmpire forward points.
-        # This anchors the outright to the authoritative Colombian interbank rate.
-        market_fwd_pts = float(row["fwd_points"])
-        fwd_market = spot + market_fwd_pts
+        # FXEmpire `mid` is the outright forward rate in COP/USD.
+        # The `spot` parameter (SET-ICAP) enters the formula directly,
+        # so the curve is already anchored to the Colombian interbank rate.
+        fwd_market = float(row["mid"])
         df_usd = sofr_handle.discount(mat)
 
         # Core formula: DF_COP = Spot * DF_USD / Forward
@@ -86,7 +86,7 @@ def build_ndf_curve(
 
         dates.append(mat)
         dfs.append(df_cop)
-        fwd_points[months] = round(market_fwd_pts, 2)
+        fwd_points[months] = round(fwd_market - spot, 2)
 
     curve = ql.DiscountCurve(dates, dfs, ql.Actual360())
     curve.enableExtrapolation()
