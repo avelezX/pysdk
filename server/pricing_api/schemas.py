@@ -25,14 +25,36 @@ class BumpRequest(BaseModel):
     rate_pct: Optional[float] = Field(None, description="New rate in percent for the node")
 
 
+_VALID_DIRECTIONS = {"buy", "sell"}
+
+
 class NdfRequest(BaseModel):
-    notional_usd: float
-    strike: float
+    notional_usd: float = Field(..., gt=0, description="USD notional amount. Must be positive.")
+    strike: float = Field(..., gt=0, description="Contracted forward rate (USD/COP). Must be positive.")
     maturity_date: str = Field(..., description="ISO date string YYYY-MM-DD")
     direction: str = Field("buy", description="'buy' or 'sell'")
-    spot: Optional[float] = None
-    use_market_forward: bool = Field(False, description="Use FXEmpire forward instead of implied")
-    market_forward: Optional[float] = Field(None, description="Market forward rate if use_market_forward=True")
+    spot: Optional[float] = Field(None, gt=0, description="USD/COP spot rate. Defaults to cm.fx_spot.")
+    use_market_forward: bool = Field(False, description="Use market forward instead of implied from curves.")
+    market_forward: Optional[float] = Field(None, gt=0, description="Market forward rate (required when use_market_forward=True).")
+
+    @field_validator("maturity_date")
+    @classmethod
+    def validate_maturity_date(cls, v):
+        _parse_date(v)
+        return v
+
+    @field_validator("direction")
+    @classmethod
+    def validate_direction(cls, v):
+        if v not in _VALID_DIRECTIONS:
+            raise ValueError(f"direction must be 'buy' or 'sell', got '{v}'")
+        return v
+
+    @model_validator(mode="after")
+    def validate_market_forward_required(self):
+        if self.use_market_forward and self.market_forward is None:
+            raise ValueError("market_forward is required when use_market_forward=True")
+        return self
 
 
 class IbrSwapRequest(BaseModel):
@@ -114,14 +136,33 @@ class XccySwapRequest(BaseModel):
 # ── Position schemas for reprice-portfolio ──
 
 class NdfPosition(BaseModel):
-    notional_usd: float
-    strike: float
+    notional_usd: float = Field(..., gt=0)
+    strike: float = Field(..., gt=0)
     maturity_date: str = Field(..., description="ISO date string YYYY-MM-DD")
     direction: str = Field("buy", description="'buy' or 'sell'")
-    spot: Optional[float] = None
+    spot: Optional[float] = Field(None, gt=0)
     use_market_forward: bool = False
-    market_forward: Optional[float] = None
+    market_forward: Optional[float] = Field(None, gt=0)
     position_id: Optional[str] = Field(None, description="Optional identifier for the position")
+
+    @field_validator("maturity_date")
+    @classmethod
+    def validate_maturity_date(cls, v):
+        _parse_date(v)
+        return v
+
+    @field_validator("direction")
+    @classmethod
+    def validate_direction(cls, v):
+        if v not in _VALID_DIRECTIONS:
+            raise ValueError(f"direction must be 'buy' or 'sell', got '{v}'")
+        return v
+
+    @model_validator(mode="after")
+    def validate_market_forward_required(self):
+        if self.use_market_forward and self.market_forward is None:
+            raise ValueError("market_forward is required when use_market_forward=True")
+        return self
 
 
 class IbrSwapPosition(BaseModel):

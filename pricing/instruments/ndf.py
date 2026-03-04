@@ -35,7 +35,7 @@ class NdfPricer:
     def implied_forward(self, maturity_date: ql.Date, spot: float = None) -> float:
         """
         Calculate the implied forward FX rate from interest rate parity.
-        F(T) = Spot * DF_COP(T) / DF_USD(T)
+        F(T) = Spot * DF_USD(T) / DF_COP(T)
 
         Args:
             maturity_date: QL date for the forward
@@ -68,17 +68,36 @@ class NdfPricer:
         spot: float = None,
     ) -> dict:
         """
-        Price an NDF position using implied forward from curves.
+        Price an NDF position using the implied forward from interest rate parity.
+
+        The implied forward is: F(T) = Spot * DF_USD(T) / DF_COP(T)
+        NPV is discounted to today using the COP discount factor:
+            NPV_COP = sign * notional_usd * (F - strike) * DF_COP(T)
 
         Args:
-            notional_usd: Notional amount in USD
-            strike: Contracted forward rate (USD/COP)
-            maturity_date: Maturity/fixing date (datetime or ql.Date)
-            direction: 'buy' (long USD) or 'sell' (short USD)
-            spot: Current spot rate (overrides cm.fx_spot)
+            notional_usd (float): Notional in USD. Must be positive.
+            strike (float): Contracted forward rate (USD/COP). This is the
+                rate agreed at inception; was the at-market forward at trade time.
+            maturity_date (datetime | ql.Date): Fixing/settlement date of the NDF.
+            direction (str): 'buy' = long USD (receive USD, pay COP if spot rises).
+                'sell' = short USD (pay USD, receive COP if spot falls).
+            spot (float | None): USD/COP spot rate. Defaults to cm.fx_spot.
 
         Returns:
-            dict with full pricing details
+            dict with keys:
+                npv_usd (float): Net present value in USD.
+                npv_cop (float): Net present value in COP.
+                forward (float): Implied forward rate USD/COP at maturity.
+                forward_points (float): Forward minus spot.
+                strike (float): Contracted forward rate.
+                df_usd (float): SOFR discount factor at maturity.
+                df_cop (float): IBR discount factor at maturity.
+                delta_cop (float): FX delta in COP (sensitivity to a 1-unit spot move).
+                    = sign * notional_usd * df_cop
+                notional_usd (float): USD notional.
+                direction (str): 'buy' or 'sell'.
+                spot (float): USD/COP spot rate used.
+                maturity (datetime): Maturity date as Python datetime.
         """
         if isinstance(maturity_date, datetime):
             maturity_date = datetime_to_ql(maturity_date)
@@ -119,11 +138,39 @@ class NdfPricer:
         spot: float = None,
     ) -> dict:
         """
-        Price an NDF using market-observed forward rate (from cop_fwd_points)
-        instead of implied forward from interest rate parity.
+        Price an NDF using a market-observed forward rate instead of the
+        implied forward from interest rate parity.
+
+        Use this when you have a reliable market quote (e.g., from cop_fwd_points
+        table) and want to avoid model dependency on IBR/SOFR curve calibration.
+
+        NPV is still discounted using the IBR COP discount factor:
+            NPV_COP = sign * notional_usd * (market_forward - strike) * DF_COP(T)
 
         Args:
-            market_forward: Market-observed forward rate (mid from cop_fwd_points)
+            notional_usd (float): Notional in USD. Must be positive.
+            strike (float): Contracted forward rate (USD/COP).
+            maturity_date (datetime | ql.Date): Fixing/settlement date of the NDF.
+            market_forward (float): Market-observed forward rate (mid from
+                cop_fwd_points table, or dealer quote).
+            direction (str): 'buy' = long USD. 'sell' = short USD.
+            spot (float | None): USD/COP spot rate. Defaults to cm.fx_spot.
+
+        Returns:
+            dict with keys:
+                npv_usd (float): Net present value in USD.
+                npv_cop (float): Net present value in COP.
+                forward (float): Market forward rate used for pricing.
+                forward_points (float): market_forward minus spot.
+                strike (float): Contracted forward rate.
+                df_usd (float): SOFR discount factor at maturity.
+                df_cop (float): IBR discount factor at maturity.
+                delta_cop (float): FX delta in COP (sensitivity to a 1-unit spot move).
+                    = sign * notional_usd * df_cop
+                notional_usd (float): USD notional.
+                direction (str): 'buy' or 'sell'.
+                spot (float): USD/COP spot rate used.
+                maturity (datetime): Maturity date as Python datetime.
         """
         if isinstance(maturity_date, datetime):
             maturity_date = datetime_to_ql(maturity_date)
@@ -135,6 +182,7 @@ class NdfPricer:
 
         npv_cop = sign * notional_usd * (market_forward - strike) * df_cop
         npv_usd = npv_cop / spot
+        delta_cop = sign * notional_usd * df_cop
 
         return {
             "npv_usd": npv_usd,
@@ -144,6 +192,7 @@ class NdfPricer:
             "strike": strike,
             "df_usd": df_usd,
             "df_cop": df_cop,
+            "delta_cop": delta_cop,
             "notional_usd": notional_usd,
             "direction": direction,
             "spot": spot,
