@@ -1,8 +1,9 @@
 """
 IBR OIS curve builder.
-Wraps existing swap_functions logic, adding SimpleQuote-based node overrides.
+Conventions are defined directly in this module (no external dependency on
+swap_functions/ibr_quantlib_details.py).
 
-Conventions (from swap_functions/ibr_quantlib_details.py):
+Conventions:
   - Index: IBR1D (OvernightIndex), COP currency, Actual360
   - Calendar: Colombia (utilities/colombia_calendar.py)
   - Settlement: T+2 (fixingDays=1 on the index)
@@ -17,9 +18,27 @@ Each tenor rate is stored as a ql.SimpleQuote for scenario analysis.
 """
 import QuantLib as ql
 from utilities.colombia_calendar import calendar_colombia
-from swap_functions.ibr_quantlib_details import ibr_quantlib_det, ibr_overnight_index
 
-# Re-export for convenience
+ibr_quantlib_det = {
+    "name": "IBR1D",
+    "fixingDays": 1,
+    "currency": ql.COPCurrency(),
+    "end_of_month": False,
+    "calendar": calendar_colombia(),
+    "bussiness_convention": ql.Following,
+    "dayCounter": ql.Actual360(),
+    "settlement_days": 2,
+}
+
+ibr_overnight_index = ql.OvernightIndex(
+    ibr_quantlib_det["name"],
+    ibr_quantlib_det["fixingDays"],
+    ibr_quantlib_det["currency"],
+    ibr_quantlib_det["calendar"],
+    ibr_quantlib_det["dayCounter"],
+)
+
+# Re-export for convenience (curve_manager.py imports these)
 IBR_DETAILS = ibr_quantlib_det
 IBR_INDEX = ibr_overnight_index
 
@@ -63,14 +82,14 @@ def _build_helpers_with_quotes(db_info: dict) -> tuple[list, dict]:
         quotes[key] = sq
 
         if is_swap:
-            helper = ql.SwapRateHelper(
-                handle,
+            helper = ql.OISRateHelper(
+                ibr_quantlib_det["settlement_days"],
                 ql.Period(tenor, unit),
-                cal,
-                ql.Quarterly,
-                ibr_quantlib_det["bussiness_convention"],
-                ibr_quantlib_det["dayCounter"],
+                handle,
                 ibr_overnight_index,
+                paymentLag=0,
+                paymentConvention=ibr_quantlib_det["bussiness_convention"],
+                paymentFrequency=ql.Quarterly,
             )
         else:
             helper = ql.DepositRateHelper(

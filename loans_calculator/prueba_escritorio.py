@@ -1,18 +1,23 @@
+# LEGACY SCRIPT — kept as historical reference only.
+#
+# Broken imports (legacy SDK no longer available):
+#   - db_call.db_call → use MarketDataLoader from pricing.data.market_data
+#   - swap_functions.main.full_ibr_curve_creation → removed; use:
+#       from pricing.curves.ibr_curve import build_ibr_curve
+#       curve, quotes = build_ibr_curve(db_info, valuation_date)
+#   - loans_calculator.loan_structure.Loan → use loan.ibrLoan.IbrLoan
+
 import sys
-#sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 sys.path.append("/Users/andre/Documents/xerenity/pysdk")
 
-
-from db_call.db_call import get_last_banrep,get_ibr_cluster_table
-from loans_calculator.loan_structure import Loan
-
-
+# from db_call.db_call import get_last_banrep, get_ibr_cluster_table  # legacy SDK
+# from loans_calculator.loan_structure import Loan                     # legacy path
+# from swap_functions.main import full_ibr_curve_creation              # module removed
 
 from datetime import datetime
 from datetime import date
 import pandas as pd
 import QuantLib as ql
-from swap_functions.main import full_ibr_curve_creation
 from utilities.colombia_calendar import calendar_colombia
 import json
 
