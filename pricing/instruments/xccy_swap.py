@@ -248,11 +248,25 @@ class XccySwapPricer:
             # Find the first period whose END date is still in the future.
             # Replace that period's start with curve_floor so forward rate
             # queries don't hit negative time.
-            first_future = 0
+            first_future = None
             for i in range(1, len(full_dates)):
                 if full_dates[i] > curve_floor:
                     first_future = i - 1
                     break
+            if first_future is None:
+                # All periods have already settled — swap is fully expired.
+                return {
+                    "npv_cop": 0.0, "npv_usd": 0.0,
+                    "usd_leg_pv": 0.0, "cop_leg_pv": 0.0,
+                    "usd_notional_exchange_pv": 0.0, "cop_notional_exchange_pv": 0.0,
+                    "usd_total": 0.0, "cop_total": 0.0,
+                    "notional_usd": notional_usd, "notional_cop": notional_cop,
+                    "fx_initial": fx, "fx_spot": self.cm.fx_spot,
+                    "xccy_basis_bps": xccy_basis_bps,
+                    "amortization_type": amortization_type,
+                    "start_date": ql_to_datetime(start_date),
+                    "maturity_date": ql_to_datetime(maturity_date),
+                }
             future_dates = list(full_dates[first_future:])
             future_usd = list(usd_notionals[first_future:])
             future_cop = list(cop_notionals[first_future:])
@@ -418,14 +432,20 @@ class XccySwapPricer:
         Convention: negative = pay out, positive = receive back.
 
         Returns PV from the payer's perspective (pays notional initially).
+
+        Note: The initial exchange date is clipped to the curve's referenceDate
+        to avoid negative-time errors for curves with settlement lag (e.g. SOFR T+2).
+        discount(referenceDate) = 1.0 exactly, so the economic error is zero.
         """
         dates = list(schedule)
         n_periods = len(dates) - 1
 
-        pv = 0.0
+        ref_date = discount_handle.referenceDate()
 
-        # Initial notional exchange: pay full notional at start
-        pv -= notionals[0] * discount_handle.discount(dates[0])
+        # Initial notional exchange: pay full notional at start.
+        # Clip to referenceDate: discount(ref_date) = 1.0, so no economic error.
+        initial_date = dates[0] if dates[0] >= ref_date else ref_date
+        pv = -notionals[0] * discount_handle.discount(initial_date)
 
         # Intermediate amortization returns and final exchange
         for i in range(1, n_periods):
@@ -522,12 +542,18 @@ class XccySwapPricer:
         start_date,
         maturity_date,
         fx_initial: float = None,
+        usd_spread_bps: float = 0.0,
+        cop_spread_bps: float = 0.0,
+        pay_usd: bool = True,
         payment_frequency: ql.Period = ql.Period(3, ql.Months),
         amortization_type: str = "bullet",
         amortization_schedule: list = None,
     ) -> float:
         """
         Find the par cross-currency basis spread (in bps) that makes NPV = 0.
+
+        The par basis is the xccy_basis_bps added to the COP leg such that
+        NPV = 0, holding all other spreads fixed.
 
         Returns:
             Par xccy basis spread in bps
@@ -540,6 +566,9 @@ class XccySwapPricer:
                 maturity_date=maturity_date,
                 xccy_basis_bps=basis_bps,
                 fx_initial=fx_initial,
+                usd_spread_bps=usd_spread_bps,
+                cop_spread_bps=cop_spread_bps,
+                pay_usd=pay_usd,
                 payment_frequency=payment_frequency,
                 amortization_type=amortization_type,
                 amortization_schedule=amortization_schedule,

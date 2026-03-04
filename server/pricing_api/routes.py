@@ -275,6 +275,7 @@ def price_xccy_swap(req: XccySwapRequest):
         usd_spread_bps=req.usd_spread_bps,
         amortization_type=req.amortization_type,
         amortization_schedule=req.amortization_schedule,
+        payment_frequency=ql.Period(req.payment_frequency_months, ql.Months),
     )
 
     for key in ("start_date", "maturity_date"):
@@ -376,6 +377,9 @@ def reprice_portfolio(req: RepricePortfolioRequest):
                 fx_initial=pos.fx_initial,
                 cop_spread_bps=pos.cop_spread_bps,
                 usd_spread_bps=pos.usd_spread_bps,
+                amortization_type=pos.amortization_type,
+                amortization_schedule=pos.amortization_schedule,
+                payment_frequency=ql.Period(pos.payment_frequency_months, ql.Months),
             )
             serialized = _serialize_portfolio_result(result)
             if pos.position_id is not None:

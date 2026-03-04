@@ -67,6 +67,7 @@ class XccySwapRequest(BaseModel):
     usd_spread_bps: float = 0.0
     amortization_type: str = "bullet"
     amortization_schedule: Optional[list] = None
+    payment_frequency_months: int = Field(3, description="Payment frequency in months: 1=monthly, 3=quarterly, 6=semi-annual, 12=annual")
 
 
 # ── Position schemas for reprice-portfolio ──
@@ -101,6 +102,9 @@ class XccySwapPosition(BaseModel):
     fx_initial: Optional[float] = None
     cop_spread_bps: float = 0.0
     usd_spread_bps: float = 0.0
+    amortization_type: str = "bullet"
+    amortization_schedule: Optional[list] = None
+    payment_frequency_months: int = Field(3, description="Payment frequency in months: 1=monthly, 3=quarterly, 6=semi-annual, 12=annual")
     position_id: Optional[str] = Field(None, description="Optional identifier for the position")
 
 
