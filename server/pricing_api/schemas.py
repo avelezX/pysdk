@@ -57,6 +57,91 @@ class NdfRequest(BaseModel):
         return self
 
 
+class NdfResponse(BaseModel):
+    """
+    Response contract for POST /pricing/ndf.
+
+    All monetary values are in their natural currency (COP or USD).
+    All rates are expressed as USD/COP (pesos per dollar).
+
+    ── Pricing ──────────────────────────────────────────────────────────────
+    npv_cop         Net present value in COP.
+                    Positive = gain for the client (in the declared direction).
+                    npv_cop = sign × notional_usd × (forward − strike) × df_cop
+
+    npv_usd         Net present value in USD = npv_cop / spot.
+
+    ── Forward ──────────────────────────────────────────────────────────────
+    forward         Implied forward rate USD/COP used for pricing.
+                    When use_market_forward=False: F = spot × df_usd / df_cop
+                      (interest rate parity, using NDF market curve for df_cop
+                       if available, else IBR fallback).
+                    When use_market_forward=True: equals the market_forward
+                      value supplied in the request.
+
+    forward_points  forward − spot.  Positive = COP trades at a premium
+                    (expected depreciation). Unit: COP pesos.
+
+    strike          Contracted forward rate from the request (USD/COP).
+
+    ── Discount factors ─────────────────────────────────────────────────────
+    df_usd          SOFR discount factor at maturity: DF_USD(T).
+                    DF = 1 at T=0, declines toward 0 as T increases.
+
+    df_cop          COP discount factor at maturity: DF_COP(T).
+                    Source depends on curve_source (see below).
+
+    ── Risk ─────────────────────────────────────────────────────────────────
+    delta_cop       FX delta in COP.
+                    Approximate change in npv_cop for a 1 COP/USD move in spot.
+                    = sign × notional_usd × df_cop
+                    Example: delta_cop = 490,000 means that if spot rises 1 COP,
+                    npv_cop increases by COP 490,000 (for a buy position).
+
+    ── Trade inputs (echoed back for UI convenience) ────────────────────────
+    notional_usd    USD notional from the request.
+    direction       'buy' (long USD) or 'sell' (short USD).
+    spot            USD/COP spot rate used. If not supplied in the request,
+                    this is the latest SET-ICAP fixing from cm.fx_spot.
+    maturity        Maturity/fixing date as ISO string YYYY-MM-DD.
+
+    ── Metadata ─────────────────────────────────────────────────────────────
+    days_to_maturity  Calendar days from today (valuation date) to maturity.
+
+    curve_source    Indicates which COP discount curve was used:
+                    'ndf_market'  — NDF market curve bootstrapped from
+                                    market_marks.ndf (preferred, captures
+                                    convertibility risk and market basis).
+                    'ibr_fallback' — IBR OIS curve used (market_marks not
+                                    available for this date).
+                    'market_forward' — Caller supplied market_forward directly
+                                    (use_market_forward=True); df_cop still
+                                    uses the same curve logic above.
+    """
+
+    npv_cop: float = Field(..., description="Net present value in COP.")
+    npv_usd: float = Field(..., description="Net present value in USD.")
+    forward: float = Field(..., description="Forward rate USD/COP used for pricing.")
+    forward_points: float = Field(..., description="Forward minus spot (COP pesos).")
+    strike: float = Field(..., description="Contracted forward rate USD/COP.")
+    df_usd: float = Field(..., description="SOFR discount factor at maturity.")
+    df_cop: float = Field(..., description="COP discount factor at maturity.")
+    delta_cop: float = Field(..., description="FX delta: npv_cop change per 1 COP/USD spot move.")
+    notional_usd: float = Field(..., description="USD notional.")
+    direction: str = Field(..., description="'buy' or 'sell'.")
+    spot: float = Field(..., description="USD/COP spot rate used.")
+    maturity: str = Field(..., description="Maturity/fixing date ISO string YYYY-MM-DD.")
+    days_to_maturity: int = Field(..., description="Calendar days from valuation date to maturity.")
+    curve_source: str = Field(
+        ...,
+        description=(
+            "'ndf_market' = NDF market curve from market_marks (preferred). "
+            "'ibr_fallback' = IBR OIS curve (market_marks unavailable). "
+            "'market_forward' = caller supplied forward directly."
+        ),
+    )
+
+
 class IbrSwapRequest(BaseModel):
     notional: float
     tenor_years: Optional[int] = Field(None, description="Tenor in years (e.g., 5)")

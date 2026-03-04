@@ -20,6 +20,7 @@ from server.pricing_api.schemas import (
     BuildCurvesRequest,
     BumpRequest,
     NdfRequest,
+    NdfResponse,
     IbrSwapRequest,
     TesBondRequest,
     XccySwapRequest,
@@ -116,9 +117,44 @@ def reset_curves():
 # ── NDF Endpoints ──
 
 
-@router.post("/ndf")
+@router.post("/ndf", response_model=NdfResponse)
 def price_ndf(req: NdfRequest):
-    """Price a USD/COP NDF."""
+    """Price a USD/COP Non-Deliverable Forward (NDF).
+
+    ── Request fields ────────────────────────────────────────────────────────
+    notional_usd        USD notional of the trade. Must be positive.
+    strike              Agreed forward rate at inception (USD/COP). Must be positive.
+    maturity_date       Fixing/settlement date in YYYY-MM-DD format.
+    direction           'buy' = long USD (client pays COP, receives USD at maturity);
+                        'sell' = short USD (client pays USD, receives COP).
+    spot                (optional) USD/COP spot override. Defaults to cm.fx_spot
+                        (latest SET-ICAP fixing loaded by build_curves).
+    use_market_forward  When True, supply market_forward instead of computing
+                        the forward from interest-rate parity.
+    market_forward      Required when use_market_forward=True. The market-quoted
+                        forward rate (USD/COP) to use directly for pricing.
+                        Useful when the desk has a specific agreed rate that
+                        differs from the model-implied forward.
+
+    ── How the forward is determined ────────────────────────────────────────
+    • use_market_forward=False (default):
+        F = spot × DF_USD(T) / DF_COP(T)
+        DF_COP source depends on curve availability (see curve_source in response).
+    • use_market_forward=True:
+        F = market_forward (exact value from request, no curve needed for forward).
+        DF_COP is still read from the active COP curve for discounting.
+
+    ── COP discount curve priority ───────────────────────────────────────────
+    1. NDF market curve (built from market_marks.ndf when available).
+       Captures convertibility risk and NDF supply/demand.
+       → curve_source = 'ndf_market'
+    2. IBR OIS curve (fallback when market_marks are unavailable).
+       Theoretical interest-rate-parity curve; misses NDF basis.
+       → curve_source = 'ibr_fallback'
+
+    ── Response fields ───────────────────────────────────────────────────────
+    See NdfResponse schema for full field documentation.
+    """
     _ensure_curves_built()
     cm = _get_cm()
     ndf = NdfPricer(cm)
@@ -133,6 +169,7 @@ def price_ndf(req: NdfRequest):
             direction=req.direction,
             spot=req.spot,
         )
+        curve_source = "market_forward"
     else:
         result = ndf.price(
             notional_usd=req.notional_usd,
@@ -141,10 +178,14 @@ def price_ndf(req: NdfRequest):
             direction=req.direction,
             spot=req.spot,
         )
+        curve_source = "ndf_market" if cm.ndf_curve is not None else "ibr_fallback"
 
     # Convert datetime to string for JSON
     if "maturity" in result and hasattr(result["maturity"], "isoformat"):
         result["maturity"] = result["maturity"].isoformat()
+
+    result["days_to_maturity"] = int(mat - cm.valuation_date)
+    result["curve_source"] = curve_source
 
     return result
 
