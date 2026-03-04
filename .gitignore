@@ -159,3 +159,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 .
+# Client documents — never commit PDFs or screenshots of confirmations
+*.pdf
+_ccs_*.png
+_ccs_*.jpg
