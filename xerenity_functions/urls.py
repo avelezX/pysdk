@@ -30,6 +30,7 @@ from server.pricing_api.views import (
     pricing_tes_bond, pricing_xccy_swap,
     pricing_reprice_portfolio,
     pricing_portfolio_reprice,
+    pricing_marks_dates,
 )
 
 
@@ -164,4 +165,5 @@ urlpatterns = [
     path("pricing/xccy-swap", pricing_xccy_swap, name="pricing_xccy_swap"),
     path("pricing/reprice-portfolio", pricing_reprice_portfolio, name="pricing_reprice_portfolio"),
     path("pricing/portfolio/reprice", pricing_portfolio_reprice, name="pricing_portfolio_reprice"),
+    path("pricing/marks/dates", pricing_marks_dates, name="pricing_marks_dates"),
 ]

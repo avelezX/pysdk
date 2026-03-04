@@ -304,6 +304,17 @@ def pricing_xccy_swap(request):
     return responseHttpOk(_serialize(result))
 
 
+# ── Market Marks ──
+
+@csrf_exempt
+def pricing_marks_dates(request):
+    """Return list of available dates in market_marks table (most recent first)."""
+    loader = _get_loader()
+    data = loader._get("market_marks", "select=fecha&order=fecha.desc&limit=120")
+    dates = [row["fecha"] for row in data] if data else []
+    return responseHttpOk({"dates": dates})
+
+
 # ── Portfolio Repricing ──
 
 @csrf_exempt
