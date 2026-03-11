@@ -315,6 +315,50 @@ def pricing_marks_dates(request):
     return responseHttpOk({"dates": dates})
 
 
+def _mark_status(row: dict) -> str:
+    """Classify a market_marks row as 'complete', 'partial', or 'missing'."""
+    NDF_TENORS = ["1", "3", "6", "12"]
+    has_spot = row.get("fx_spot") is not None
+    has_sofr_on = row.get("sofr_on") is not None
+    ibr = row.get("ibr") or {}
+    has_ibr = any(ibr.get(k) is not None for k in ["ibr_1d", "ibr_1m", "ibr_3m", "ibr_6m", "ibr_12m"])
+    sofr = row.get("sofr") or {}
+    has_sofr = any(sofr.get(k) is not None for k in ["1", "3", "12", "60", "120"])
+    ndf = row.get("ndf") or {}
+    has_ndf = any(
+        (ndf.get(t) or {}).get("F_market") is not None for t in NDF_TENORS
+    )
+    if has_spot and has_sofr_on and has_ibr and has_sofr and has_ndf:
+        all_ndf = all((ndf.get(t) or {}).get("F_market") is not None for t in NDF_TENORS)
+        return "complete" if all_ndf else "partial"
+    if has_spot or has_sofr_on or has_ibr or has_sofr or has_ndf:
+        return "partial"
+    return "missing"
+
+
+@csrf_exempt
+def pricing_marks(request):
+    """Return all market_marks rows normalized for display.
+
+    Each row includes:
+      fecha, status, fx_spot, sofr_on,
+      ibr: {ibr_1d, ibr_1m, ibr_3m, ibr_6m, ibr_12m},
+      sofr: {"1", "3", "12", "60", "120"},
+      ndf: {"1": {F_market, fwd_pts}, ...}
+
+    status: 'complete' | 'partial' | 'missing'
+    """
+    loader = _get_loader()
+    data = loader._get(
+        "market_marks",
+        "select=fecha,fx_spot,sofr_on,ibr,sofr,ndf&order=fecha.desc&limit=120",
+    )
+    rows = data if data else []
+    for row in rows:
+        row["status"] = _mark_status(row)
+    return responseHttpOk({"marks": rows, "count": len(rows)})
+
+
 # ── Portfolio Repricing ──
 
 @csrf_exempt
