@@ -95,34 +95,24 @@ class MarketDataLoader:
         result = {}
         today = date.today().isoformat()
 
-        # Deposits from BanRep (filter out future dates)
+        # Deposits from BanRep — use lte for both live and historical to handle
+        # series that aren't published every day (e.g. ibr_12m).
+        effective_date = target_date or today
         for key, serie_id in self._BANREP_DEPOSITS.items():
-            if target_date is None:
-                data = self._get(
-                    "banrep_series_value_v2",
-                    f"select=valor&id_serie=eq.{serie_id}"
-                    f"&fecha=lte.{today}&order=fecha.desc&limit=1",
-                )
-            else:
-                data = self._get(
-                    "banrep_series_value_v2",
-                    f"select=valor&id_serie=eq.{serie_id}&fecha=eq.{target_date}&limit=1",
-                )
+            data = self._get(
+                "banrep_series_value_v2",
+                f"select=valor&id_serie=eq.{serie_id}"
+                f"&fecha=lte.{effective_date}&order=fecha.desc&limit=1",
+            )
             if data and data[0].get("valor") is not None:
                 result[key] = [data[0]["valor"]]
 
-        # Swaps 2Y-10Y from accessible tables (filter out future dates)
+        # Swaps 2Y-10Y from accessible tables — same lte approach.
         for key, table in self._SWAP_TABLES.items():
-            if target_date is None:
-                data = self._get(
-                    table,
-                    f"select=close&day=lte.{today}&order=day.desc&limit=1",
-                )
-            else:
-                data = self._get(
-                    table,
-                    f"select=close&day=eq.{target_date}&limit=1",
-                )
+            data = self._get(
+                table,
+                f"select=close&day=lte.{effective_date}&order=day.desc&limit=1",
+            )
             if data and data[0].get("close") is not None:
                 result[key] = [data[0]["close"]]
 
