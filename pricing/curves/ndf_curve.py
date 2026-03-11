@@ -18,11 +18,10 @@ This curve should be used for NDF pricing instead of the IBR curve.
 The IBR curve remains correct for IBR swaps.
 
 Data source: cop_fwd_points table (FXEmpire collector)
-  - Tenors: 1M through 10Y (market-observed forward points)
-  - fwd_points column: pip differential relative to spot
-  - Outright forward reconstructed as: spot (SET-ICAP) + fwd_points (FXEmpire)
-  - Using SET-ICAP spot ensures the outright forward is anchored to the
-    authoritative Colombian interbank fixing, not FXEmpire's embedded spot.
+  - Tenors: 1M through 10Y (market-observed outright forwards)
+  - mid column: outright USD/COP forward (e.g. 3,775.69 for 1M) — used directly.
+  - fwd_pts_cop = mid - spot (SET-ICAP) anchors the differential to the
+    authoritative Colombian interbank fixing.
 """
 import QuantLib as ql
 import pandas as pd
@@ -75,11 +74,9 @@ def build_ndf_curve(
         mat = calendar.advance(
             valuation_date, ql.Period(months, ql.Months), ql.Following
         )
-        # Reconstruct outright forward: SET-ICAP spot + FXEmpire differential.
-        # FXEmpire stores Points = (mid - FXEmpire_spot) * 10000 (pip convention).
-        # Dividing by 10000 gives the COP differential, which we anchor to the
-        # SET-ICAP spot for a fully consistent curve.
-        fwd_market = spot + float(row["fwd_points"]) / 10_000
+        # Use mid (outright forward) directly — the market-observed USD/COP rate.
+        # mid is already the full outright (e.g. 3,775.69 for 1M), no reconstruction needed.
+        fwd_market = float(row["mid"])
         df_usd = sofr_handle.discount(mat)
 
         # Core formula: DF_COP = Spot * DF_USD / Forward

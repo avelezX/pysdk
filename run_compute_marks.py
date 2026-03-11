@@ -23,7 +23,6 @@ import QuantLib as ql
 
 from pricing.data.market_data import MarketDataLoader
 from pricing.curves.curve_manager import CurveManager
-from pricing.curves.ndf_curve import build_ndf_curve
 
 
 def compute_marks(target_date: str = None) -> dict:
@@ -54,7 +53,6 @@ def compute_marks(target_date: str = None) -> dict:
     cm.build_ibr_curve(ibr_quotes)
     cm.build_sofr_curve(sofr_df)
     cm.set_fx_spot(fx_spot)
-    _, fwd_pts = build_ndf_curve(cop_fwd, fx_spot, cm.sofr_handle, cm.valuation_date)
 
     # ── IBR nodes (% EA) ──
     ibr_payload = {k: round(v, 6) for k, v in cm.status()["ibr"]["nodes"].items()}
@@ -67,12 +65,19 @@ def compute_marks(target_date: str = None) -> dict:
         sofr_payload[str(m)] = round(cm.sofr_zero_rate(dt) * 100, 6)
 
     # ── NDF forwards by tenor_months ──
+    # Use mid (outright forward) directly from cop_fwd_points — no SOFR bootstrap needed.
+    # mid IS the market-observed outright forward (e.g. 3,775.69 for 1M).
+    # fwd_pts_cop = mid - fx_spot anchors the differential to the SET-ICAP spot.
     ndf_payload = {}
-    for months, fwd_pts_cop in sorted(fwd_pts.items()):
-        f_market = fx_spot + fwd_pts_cop
+    for _, row in cop_fwd.iterrows():
+        months = int(row["tenor_months"])
+        if months <= 0 or row.get("mid") is None:
+            continue
+        f_market = float(row["mid"])
+        fwd_pts_cop = round(f_market - fx_spot, 4)
         deval_ea = round(((f_market / fx_spot) ** (12 / months) - 1) * 100, 4)
         ndf_payload[str(months)] = {
-            "fwd_pts_cop": round(fwd_pts_cop, 4),
+            "fwd_pts_cop": fwd_pts_cop,
             "F_market":    round(f_market, 4),
             "deval_ea":    deval_ea,
         }
