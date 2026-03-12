@@ -184,7 +184,7 @@ class CurveManager:
             NDF-implied COP DiscountCurve (also linked to ndf_handle).
         """
         rows = [
-            {"tenor_months": int(k), "fwd_points": v["fwd_pts_cop"] * 10_000}
+            {"tenor_months": int(k), "mid": v["F_market"]}
             for k, v in ndf_marks.items()
         ]
         df = pd.DataFrame(rows).sort_values("tenor_months")
