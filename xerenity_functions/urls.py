@@ -17,12 +17,9 @@ Including another URLconf
 
 import json
 from django.urls import path
+from django.views.decorators.csrf import csrf_exempt
 from server.main_server import XerenityError, responseHttpError, responseHttpOk
 
-from server.loan_calculator.loan_calculator import LoanCalculatorServer
-from server.ibr_quotes_servefr.ibr_quotes_calculator import IbQuotesServer
-from server.uvr_prints_server.uvr_prints_calculator import UVRPrintsServer
-from server.all_loans_server.all_loans_server import AllLoanServer
 from server.pricing_api.views import (
     pricing_build, pricing_status, pricing_bump, pricing_reset,
     pricing_ndf, pricing_ndf_implied_curve, pricing_ndf_settlement,
@@ -37,6 +34,7 @@ from server.pricing_api.views import (
 
 def period_payment(request):
     try:
+        from server.loan_calculator.loan_calculator import LoanCalculatorServer
         calc = LoanCalculatorServer(json.loads(request.body))
         return calc.period_payment()
     except XerenityError as xerror:
@@ -58,6 +56,7 @@ def cash_flow(request):
         if len(request.body) == 0:
             raise Exception('No se encontraron datos para este credito')
 
+        from server.loan_calculator.loan_calculator import LoanCalculatorServer
         calc = LoanCalculatorServer(json.loads(request.body))
         return calc.cash_flow()
     except XerenityError as xerror:
@@ -75,6 +74,7 @@ def ibr_rates(request):
     """
 
     try:
+        from server.loan_calculator.loan_calculator import LoanCalculatorServer
         calc = LoanCalculatorServer(json.loads(request.body))
         return calc.cash_flow_ibr()
     except XerenityError as xerror:
@@ -86,11 +86,12 @@ def ibr_rates(request):
 def uvr_rates(request):
     """
 
-    Entry point for ibr rates calculation
+    Entry point for uvr rates calculation
     :param request:
     :return:
     """
     try:
+        from server.loan_calculator.loan_calculator import LoanCalculatorServer
         calc = LoanCalculatorServer(json.loads(request.body))
         return calc.cash_flow_uvr()
     except XerenityError as xerror:
@@ -101,6 +102,7 @@ def uvr_rates(request):
 
 def fwd_rates(request):
     try:
+        from server.ibr_quotes_servefr.ibr_quotes_calculator import IbQuotesServer
         calc = IbQuotesServer(json.loads(request.body))
         return calc.calculate()
     except XerenityError as xerror:
@@ -111,6 +113,7 @@ def fwd_rates(request):
 
 def uvr_prints(request):
     try:
+        from server.uvr_prints_server.uvr_prints_calculator import UVRPrintsServer
         calc = UVRPrintsServer(json.loads(request.body))
         return calc.calculate()
     except XerenityError as xerror:
@@ -121,6 +124,7 @@ def uvr_prints(request):
 
 def cpi_implicit(request):
     try:
+        from server.uvr_prints_server.uvr_prints_calculator import UVRPrintsServer
         calc = UVRPrintsServer(json.loads(request.body))
         return calc.calculate_cpi_implicit()
     except XerenityError as xerror:
@@ -131,8 +135,42 @@ def cpi_implicit(request):
 
 def all_loans(request):
     try:
+        from server.all_loans_server.all_loans_server import AllLoanServer
         calc = AllLoanServer(json.loads(request.body))
         return calc.calculate()
+    except XerenityError as xerror:
+        return responseHttpError(message=xerror.message, code=xerror.code)
+    except Exception as e:
+        return responseHttpError(message=str(e), code=400)
+
+
+def risk_management(request):
+    try:
+        from server.risk_management_server.risk_management_server import RiskManagementServer
+        calc = RiskManagementServer(json.loads(request.body))
+        return calc.calculate()
+    except XerenityError as xerror:
+        return responseHttpError(message=xerror.message, code=xerror.code)
+    except Exception as e:
+        return responseHttpError(message=str(e), code=400)
+
+
+def risk_rolling_var(request):
+    try:
+        from server.risk_management_server.risk_management_server import RiskManagementServer
+        calc = RiskManagementServer(json.loads(request.body))
+        return calc.rolling_var()
+    except XerenityError as xerror:
+        return responseHttpError(message=xerror.message, code=xerror.code)
+    except Exception as e:
+        return responseHttpError(message=str(e), code=400)
+
+
+def risk_benchmark_factors(request):
+    try:
+        from server.risk_management_server.risk_management_server import RiskManagementServer
+        calc = RiskManagementServer(json.loads(request.body))
+        return calc.benchmark_factors()
     except XerenityError as xerror:
         return responseHttpError(message=xerror.message, code=xerror.code)
     except Exception as e:
@@ -144,15 +182,18 @@ def wake_up(request):
 
 
 urlpatterns = [
-    path("period_payment", period_payment, name="period_payment"),
-    path("cash_flow", cash_flow, name="cash_flow"),
-    path("ibr_rates", ibr_rates, name="ibr_rates"),
-    path("fwd_rates", fwd_rates, name="fwd_rates"),
-    path("uvr_prints", uvr_prints, name="uvr_prints"),
-    path("cpi_implicit", cpi_implicit, name="cpi_implicit"),
-    path("all_loans", all_loans, name="all_loans"),
-    path("uvr_rates", uvr_rates, name="uvr_rates"),
-    path("wake_up", wake_up, name="wake_up"),
+    path("period_payment", csrf_exempt(period_payment), name="period_payment"),
+    path("cash_flow", csrf_exempt(cash_flow), name="cash_flow"),
+    path("ibr_rates", csrf_exempt(ibr_rates), name="ibr_rates"),
+    path("fwd_rates", csrf_exempt(fwd_rates), name="fwd_rates"),
+    path("uvr_prints", csrf_exempt(uvr_prints), name="uvr_prints"),
+    path("cpi_implicit", csrf_exempt(cpi_implicit), name="cpi_implicit"),
+    path("all_loans", csrf_exempt(all_loans), name="all_loans"),
+    path("uvr_rates", csrf_exempt(uvr_rates), name="uvr_rates"),
+    path("wake_up", csrf_exempt(wake_up), name="wake_up"),
+    path("risk_management", csrf_exempt(risk_management), name="risk_management"),
+    path("risk_rolling_var", csrf_exempt(risk_rolling_var), name="risk_rolling_var"),
+    path("risk_benchmark_factors", csrf_exempt(risk_benchmark_factors), name="risk_benchmark_factors"),
     # Pricing API
     path("pricing/curves/build", pricing_build, name="pricing_build"),
     path("pricing/curves/status", pricing_status, name="pricing_status"),

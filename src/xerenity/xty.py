@@ -3,9 +3,7 @@ import sys
 
 # sys.path.append("/Users/avelezxerenity/Documents/GitHub/pysdk")
 sys.path.append("/Users/andre/Documents/xerenity/pysdk")
-from supabase import Client
-from supabase import create_client
-from supabase.lib.client_options import ClientOptions
+from supabase import Client, create_client, ClientOptions
 
 from src.xerenity.modules.BanRep.banrep import BanRep_Functions
 from src.xerenity.modules.CPI.cpi import CPI_Functions
@@ -23,7 +21,7 @@ class Xerenity:
         # Attribute Initialization
         url: str = os.getenv('XTY_URL')
         key: str = os.getenv('XTY_TOKEN')
-        opts = ClientOptions(auto_refresh_token=auto_refresh).replace(schema="xerenity")
+        opts = ClientOptions(schema="xerenity", auto_refresh_token=auto_refresh)
         # self.data_name: str = table_name
 
         # Connection Client Initialization
