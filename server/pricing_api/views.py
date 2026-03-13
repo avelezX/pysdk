@@ -7,7 +7,7 @@ It gets initialized on the first /pricing/curves/build call.
 """
 import json
 import QuantLib as ql
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from django.views.decorators.csrf import csrf_exempt
 from server.main_server import responseHttpOk, responseHttpError
 
@@ -302,6 +302,84 @@ def pricing_xccy_swap(request):
     )
 
     return responseHttpOk(_serialize(result))
+
+
+# ── NDF Settlement ──
+
+@csrf_exempt
+def pricing_ndf_settlement(request):
+    """Calculate the realized P&L for a settled (expired) NDF.
+
+    At maturity the NDF fixes against the BanRep TRM (serie 25).
+    Settlement P&L in COP:
+        pyl_cop = sign * notional_usd * (trm_fixing - strike)
+    where sign = +1 for 'buy' (long USD), -1 for 'sell' (short USD).
+
+    TRM de liquidacion: la TRM es un promedio de las operaciones del dia
+    anterior, publicada al dia habil siguiente al fixing_date. Se usa gte
+    sobre maturity_date + 1 para capturar el primer dia habil posterior
+    (maneja viernes → lunes, festivos, etc.).
+
+    Does NOT require curves to be built — it is a pure arithmetic calculation
+    over confirmed market data (BanRep TRM).
+
+    Request body:
+        notional_usd  (float)  – USD notional, positive
+        strike        (float)  – contracted forward rate USD/COP
+        maturity_date (str)    – fixing date YYYY-MM-DD
+        direction     (str)    – 'buy' or 'sell' (default: 'buy')
+
+    Response:
+        trm_fixing    (float)  – BanRep TRM on (or before) maturity_date
+        trm_date      (str)    – actual fecha of the TRM record used
+        pyl_cop       (float)  – realized P&L in COP
+        pyl_usd       (float)  – realized P&L in USD (pyl_cop / trm_fixing)
+        strike        (float)  – contracted rate
+        notional_usd  (float)
+        direction     (str)
+        maturity_date (str)
+    """
+    body = json.loads(request.body)
+    notional_usd = float(body["notional_usd"])
+    strike = float(body["strike"])
+    maturity_date = body["maturity_date"]
+    direction = body.get("direction", "buy")
+
+    loader = _get_loader()
+
+    # TRM de liquidación: la TRM publicada el día SIGUIENTE al fixing date.
+    # La TRM es un promedio de las transacciones del día anterior — se publica
+    # al día hábil siguiente. Si el día siguiente cae en fin de semana o festivo,
+    # se toma el primer día hábil posterior (gte + order asc).
+    next_date = (datetime.strptime(maturity_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+    data = loader._get(
+        "banrep_series_value_v2",
+        f"select=valor,fecha&id_serie=eq.25"
+        f"&fecha=gte.{next_date}&order=fecha.asc&limit=1",
+    )
+    if not data or data[0].get("valor") is None:
+        return responseHttpError(
+            f"TRM de liquidacion no disponible para fecha {maturity_date} "
+            f"(se busca a partir de {next_date})", 404
+        )
+
+    trm_fixing = float(data[0]["valor"])
+    trm_date = data[0]["fecha"]
+
+    sign = 1.0 if direction == "buy" else -1.0
+    pyl_cop = sign * notional_usd * (trm_fixing - strike)
+    pyl_usd = pyl_cop / trm_fixing
+
+    return responseHttpOk({
+        "trm_fixing": round(trm_fixing, 4),
+        "trm_date": trm_date,
+        "pyl_cop": round(pyl_cop, 2),
+        "pyl_usd": round(pyl_usd, 2),
+        "strike": strike,
+        "notional_usd": notional_usd,
+        "direction": direction,
+        "maturity_date": maturity_date,
+    })
 
 
 # ── Market Marks ──

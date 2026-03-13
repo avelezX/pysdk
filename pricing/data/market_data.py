@@ -207,6 +207,31 @@ class MarketDataLoader:
             return float(data[0]["mid"])
         return None
 
+    # ── BanRep TRM (serie 25) ──
+
+    def fetch_trm(self, fecha: str) -> Optional[float]:
+        """
+        Fetch TRM (Tasa Representativa del Mercado) for a given date.
+
+        Source: banrep_series_value_v2, serie_id=25.
+        Uses lte to handle weekends/holidays — returns the last published TRM
+        on or before the requested date.
+
+        Args:
+            fecha: ISO date string, e.g. '2026-03-12'
+
+        Returns:
+            TRM as float (COP per 1 USD), or None if not found.
+        """
+        data = self._get(
+            "banrep_series_value_v2",
+            f"select=valor,fecha&id_serie=eq.25"
+            f"&fecha=lte.{fecha}&order=fecha.desc&limit=1",
+        )
+        if data and data[0].get("valor") is not None:
+            return float(data[0]["valor"])
+        return None
+
     # ── Store Marks Snapshot ──
 
     def store_marks(self, fecha: str, fx_spot: float, sofr_on: float,
