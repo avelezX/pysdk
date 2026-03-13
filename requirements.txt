@@ -35,3 +35,5 @@ gunicorn
 djangorestframework
 scipy
 yfinance
+django-cors-headers
+requests

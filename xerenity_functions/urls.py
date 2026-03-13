@@ -18,7 +18,18 @@ Including another URLconf
 import json
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
-from server.main_server import XerenityError, responseHttpError
+from server.main_server import XerenityError, responseHttpError, responseHttpOk
+
+from server.pricing_api.views import (
+    pricing_build, pricing_status, pricing_bump, pricing_reset,
+    pricing_ndf, pricing_ndf_implied_curve, pricing_ndf_settlement,
+    pricing_ibr_swap, pricing_ibr_par_curve,
+    pricing_tes_bond, pricing_xccy_swap,
+    pricing_reprice_portfolio,
+    pricing_portfolio_reprice,
+    pricing_marks_dates,
+    pricing_marks,
+)
 
 
 def period_payment(request):
@@ -66,6 +77,23 @@ def ibr_rates(request):
         from server.loan_calculator.loan_calculator import LoanCalculatorServer
         calc = LoanCalculatorServer(json.loads(request.body))
         return calc.cash_flow_ibr()
+    except XerenityError as xerror:
+        return responseHttpError(message=xerror.message, code=xerror.code)
+    except Exception as e:
+        return responseHttpError(message=str(e), code=400)
+
+
+def uvr_rates(request):
+    """
+
+    Entry point for uvr rates calculation
+    :param request:
+    :return:
+    """
+    try:
+        from server.loan_calculator.loan_calculator import LoanCalculatorServer
+        calc = LoanCalculatorServer(json.loads(request.body))
+        return calc.cash_flow_uvr()
     except XerenityError as xerror:
         return responseHttpError(message=xerror.message, code=xerror.code)
     except Exception as e:
@@ -149,6 +177,10 @@ def risk_benchmark_factors(request):
         return responseHttpError(message=str(e), code=400)
 
 
+def wake_up(request):
+    return responseHttpOk(body={"message": "Servidor de creditos activado"})
+
+
 urlpatterns = [
     path("period_payment", csrf_exempt(period_payment), name="period_payment"),
     path("cash_flow", csrf_exempt(cash_flow), name="cash_flow"),
@@ -157,7 +189,25 @@ urlpatterns = [
     path("uvr_prints", csrf_exempt(uvr_prints), name="uvr_prints"),
     path("cpi_implicit", csrf_exempt(cpi_implicit), name="cpi_implicit"),
     path("all_loans", csrf_exempt(all_loans), name="all_loans"),
+    path("uvr_rates", csrf_exempt(uvr_rates), name="uvr_rates"),
+    path("wake_up", csrf_exempt(wake_up), name="wake_up"),
     path("risk_management", csrf_exempt(risk_management), name="risk_management"),
     path("risk_rolling_var", csrf_exempt(risk_rolling_var), name="risk_rolling_var"),
     path("risk_benchmark_factors", csrf_exempt(risk_benchmark_factors), name="risk_benchmark_factors"),
+    # Pricing API
+    path("pricing/curves/build", pricing_build, name="pricing_build"),
+    path("pricing/curves/status", pricing_status, name="pricing_status"),
+    path("pricing/curves/bump", pricing_bump, name="pricing_bump"),
+    path("pricing/curves/reset", pricing_reset, name="pricing_reset"),
+    path("pricing/ndf", pricing_ndf, name="pricing_ndf"),
+    path("pricing/ndf/implied-curve", pricing_ndf_implied_curve, name="pricing_ndf_implied_curve"),
+    path("pricing/ndf/settlement", pricing_ndf_settlement, name="pricing_ndf_settlement"),
+    path("pricing/ibr-swap", pricing_ibr_swap, name="pricing_ibr_swap"),
+    path("pricing/ibr/par-curve", pricing_ibr_par_curve, name="pricing_ibr_par_curve"),
+    path("pricing/tes-bond", pricing_tes_bond, name="pricing_tes_bond"),
+    path("pricing/xccy-swap", pricing_xccy_swap, name="pricing_xccy_swap"),
+    path("pricing/reprice-portfolio", pricing_reprice_portfolio, name="pricing_reprice_portfolio"),
+    path("pricing/portfolio/reprice", pricing_portfolio_reprice, name="pricing_portfolio_reprice"),
+    path("pricing/marks/dates", pricing_marks_dates, name="pricing_marks_dates"),
+    path("pricing/marks", pricing_marks, name="pricing_marks"),
 ]

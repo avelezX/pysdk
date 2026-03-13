@@ -22,7 +22,8 @@ class Loan:
         'Anual': 'ibr_12m',
         'Semestral': 'ibr_6m',
         'Trimestral': 'ibr_3m',
-        'Mensual': 'ibr_1m'
+        'Mensual': 'ibr_1m',
+        'Bimensual': 'ibr_2m',
     }
 
     def __init__(self,

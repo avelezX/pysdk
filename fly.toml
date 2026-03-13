@@ -3,8 +3,8 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = "pysdk"
-primary_region = "qro"
+app = "xerenity-pysdk"
+primary_region = "dfw"
 console_command = "/code/manage.py shell"
 
 [build]
@@ -15,9 +15,9 @@ console_command = "/code/manage.py shell"
 [http_service]
   internal_port = 8000
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = false
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ["app"]
 
 [[vm]]

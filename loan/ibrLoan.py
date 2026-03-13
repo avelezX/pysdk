@@ -8,7 +8,6 @@ class IbrLoan(Loan):
     def generate_cash_flow(self, value_date=None, uvr=None):
 
         # Curve deberia ser una curva de IBR generada con la valoracion de la curva actual
-        curve = self.qlHelper.create_curve(db_info=self.db_info,value_date=value_date)
 
         periodicidad_tasa = self.periodicity_spanish
 
@@ -47,12 +46,18 @@ class IbrLoan(Loan):
         result_df['spread'] = self.interest_rate
         result_df['principal'] = 0  # self.original_balance / self.capital_payments
 
+
         # Iterate through each date in your_date_list
         moving_period = ql.Period(int(12 * number_to_user[self.periodicity]), ql.Months)
         result_df.at[0, 'beginning_balance'] = self.original_balance
 
         index_rows = ['date', 'beginning_balance', 'rate', 'rate_tot', 'payment', 'interest', 'principal',
                       'ending_balance']
+
+        # TODO Hacer el calculo de meses aqui
+
+        years = number_to_user[self.periodicity]*self.number_of_payments
+        curve = self.qlHelper.create_curve(db_info=self.db_info, value_date=value_date, years=years)
 
         for i, date in enumerate(dates):
             # Find the closest date in the 'tasas' DataFrame

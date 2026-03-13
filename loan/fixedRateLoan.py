@@ -5,7 +5,7 @@ from utilities.date_functions import ql_to_datetime
 
 
 class FixedRateLoan(Loan):
-    def generate_cash_flow(self, value_date=None, uvr=None):
+    def generate_cash_flow(self, value_date=None, uvr: bool = None):
         """
         Generates a cash flow table for the loan.
 
@@ -48,7 +48,9 @@ class FixedRateLoan(Loan):
             payment.append(interest_payment[-1] + principal_payment[-1])
             current_balance = ending_balance[-1]
 
+
         date_list = [ql_to_datetime(ql_date) for ql_date in date_list]
+
         cf_data = {
             'date': date_list,
             'interest': interest_payment,
@@ -60,6 +62,32 @@ class FixedRateLoan(Loan):
         }
 
         cf_table = pd.DataFrame(data=cf_data, index=periods)
+
+
+        if uvr:
+            self.db_info['fecha'] = pd.to_datetime(self.db_info['fecha'])
+
+            # Get intersection of dates
+            date_set = set(date_list)
+            df_date_set = set(self.db_info['fecha'])
+            intersected_dates = date_set.intersection(df_date_set)
+
+            # Filter DataFrame
+            intersection_df = self.db_info[self.db_info['fecha'].isin(intersected_dates)]
+
+            merged_df = cf_table.merge(intersection_df, left_on='date', right_on='fecha', how='left')
+
+            # Define columns to multiply (all except the date columns)
+            columns_to_multiply = ['interest', 'principal', 'payment', 'ending_balance', 'beginning_balance']
+
+            # Multiply each column by the valor
+            for col in columns_to_multiply:
+                merged_df[col] = merged_df[col] * merged_df['valor']
+
+            cf_table = merged_df.copy()
+
         cf_table = cf_table[['date', 'beginning_balance', 'rate', 'payment', 'interest', 'principal', 'ending_balance']]
+
+        print(pd.DataFrame(data=cf_table, index=periods))
 
         return cf_table
