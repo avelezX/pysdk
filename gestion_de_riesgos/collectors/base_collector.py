@@ -464,34 +464,43 @@ class TRMCollector(BaseCollector):
         return result.reset_index(drop=True)
 
     def _fetch_from_xerenity(self, start_date: str, end_date: str) -> pd.DataFrame:
-        """Obtiene TRM desde Xerenity API (requiere credenciales)."""
-        from xerenity import Xerenity
+        """Obtiene TRM desde Supabase REST API (serie BanRep 25)."""
         import os
+        import requests
 
-        x_user = os.environ.get('XTY_USER', '')
-        x_pass = os.environ.get('XTY_PWD', '')
-        if not x_user or not x_pass:
-            raise ValueError("Credenciales Xerenity no configuradas")
+        url = os.getenv("XTY_URL")
+        key = os.getenv("XTY_TOKEN")
+        bearer = os.getenv("COLLECTOR_BEARER") or key
+        if not url or not key:
+            raise ValueError("XTY_URL / XTY_TOKEN no configuradas")
 
-        x = Xerenity(x_user, x_pass)
-        raw = x.series.search(ticker=TRM_XERENITY_TICKER)
-        df = pd.DataFrame(raw).rename(columns={"time": "fecha", "value": "precio"})
-        df["fecha"] = pd.to_datetime(df["fecha"])
-        df["precio"] = pd.to_numeric(df["precio"], errors="coerce")
-        df = df[["fecha", "precio"]].dropna().sort_values("fecha")
+        s = requests.Session()
+        s.headers.update({
+            "apikey": key,
+            "Authorization": f"Bearer {bearer}",
+            "Accept-Profile": "xerenity",
+        })
 
-        df = df[
-            (df["fecha"] >= pd.to_datetime(start_date))
-            & (df["fecha"] <= pd.to_datetime(end_date))
-        ]
+        resp = s.get(
+            f"{url}/rest/v1/banrep_series_value_v2"
+            f"?select=fecha,valor&id_serie=eq.25"
+            f"&fecha=gte.{start_date}&fecha=lte.{end_date}"
+            f"&order=fecha.asc",
+        )
+        resp.raise_for_status()
+        data = resp.json()
 
+        if not data:
+            return pd.DataFrame()
+
+        df = pd.DataFrame(data)
         result = pd.DataFrame({
-            'date': df["fecha"].dt.strftime('%Y-%m-%d'),
-            'close': df["precio"].values,
+            'date': df["fecha"],
+            'close': pd.to_numeric(df["valor"], errors="coerce"),
             'contract': 'TRM',
         })
 
-        return result.reset_index(drop=True)
+        return result.dropna(subset=['close']).reset_index(drop=True)
 
 
 # ==================== IB UPDATER (on-demand) ====================
