@@ -1,0 +1,30 @@
+name: Load DAILY US Reference Rates
+run-name: Loading DAILY US Reference Rates
+on:
+  workflow_dispatch:
+  schedule:
+    #UTC time — NY Fed publishes ~8am ET
+    - cron: '0 14 * * 1-5'
+jobs:
+  collect_us_rates:
+    runs-on: ubuntu-latest
+    container:
+      image: avelezxerenity/xerenity:latest
+      options: --cpus 1
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Collect SOFR, EFFR, OBFR and SOFR averages
+        run: python3 run_collect_us_rates.py
+      - name: Notify Slack
+        if: failure()
+        id: slack
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text":"Collector File:${{ github.job }} -> ${{ github.workflow }} with status ${{ job.status }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

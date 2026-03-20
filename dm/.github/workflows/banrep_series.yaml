@@ -1,0 +1,18 @@
+# DEPRECATED: totoro.banrep.gov.co SDMX API is dead (404). Use suameca_series.yaml instead.
+name: Banrep Series (DEPRECATED)
+run-name: Loading Banrep series (DEPRECATED)
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '*/30 14,15 * * 1-5'
+jobs:
+  collect_daily_prices:
+    runs-on: ubuntu-latest
+    container:
+      image: avelezxerenity/xerenity:latest
+      options: --cpus 1
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Store daily prices
+        run: python3 run_collect_banrep_api.py
