@@ -1,0 +1,46 @@
+# This workflow collects BanRep series from the SUAMECA portal (suameca.banrep.gov.co)
+# Replaces the old totoro.banrep.gov.co SDMX API which is now dead (404)
+# Covers: TPM, IBR, TIB, DTF, CDT, UVR, TRM, COLCAP, M1/M2/M3, TES yields, IPC
+name: Load SUAMECA Series
+run-name: Loading SUAMECA Series
+on:
+  workflow_dispatch:
+  schedule:
+    #UTC time - weekdays at 16:00 UTC (11:00 AM COT)
+    - cron: '0 16 * * 1-5'
+jobs:
+  collect_suameca_series:
+    runs-on: ubuntu-latest
+    container:
+      image: avelezxerenity/xerenity:latest
+      options: --cpus 1
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Store SUAMECA series
+        run: python3 run_collect_suameca.py
+      - name: Refresh IBR loan curves
+        if: success()
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            "https://tvpehjbqxpiswkqszwwv.supabase.co/rest/v1/rpc/update_ibr_loan_curves" \
+            -H "apikey: ${{ secrets.SUPABASE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.COLLECTOR_BEARER }}" \
+            -H "Content-Profile: xerenity" \
+            -H "Content-Type: application/json" \
+            -d "{}" \
+          | grep -qE "^2" && echo "ibr_quotes_curve refreshed successfully" \
+            || echo "Warning: RPC update_ibr_loan_curves returned non-2xx status"
+      - name: Notify Slack
+        if: failure()
+        id: slack
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text":"Collector:${{ github.job }} -> ${{ github.workflow }} with status ${{ job.status }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

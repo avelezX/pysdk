@@ -1,0 +1,32 @@
+# This workflow collects the Colombian usury rate (tasa de usura) from Superfinanciera
+# The usury rate changes monthly, so a monthly schedule on the 1st is sufficient
+name: Load MONTHLY TASA USURA
+run-name: Loading MONTHLY TASA USURA
+on:
+  workflow_dispatch:
+  schedule:
+    #UTC time
+    - cron: '0 16 1 * *'
+jobs:
+  collect_daily_prices:
+    runs-on: ubuntu-latest
+    container:
+      image: avelezxerenity/xerenity:latest
+      options: --cpus 1
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Store tasa usura values
+        run: python3 run_collect_tasa_usura.py
+      - name: Notify Slack
+        if: failure()
+        id: slack
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text":"Collector File:${{ github.job }} -> ${{ github.workflow }} with status ${{ job.status }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

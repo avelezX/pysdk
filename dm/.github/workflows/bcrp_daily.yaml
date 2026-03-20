@@ -1,0 +1,30 @@
+name: Load DAILY BCRP Peru Series
+run-name: Loading DAILY BCRP Peru Series
+on:
+  workflow_dispatch:
+  schedule:
+    # UTC time — BCRP publishes ~10am PET (15:00 UTC)
+    - cron: '0 16 * * 1-5'
+jobs:
+  collect_bcrp:
+    runs-on: ubuntu-latest
+    container:
+      image: avelezxerenity/xerenity:latest
+      options: --cpus 1
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Collect BCRP Peru economic series
+        run: python3 run_collect_bcrp.py
+      - name: Notify Slack
+        if: failure()
+        id: slack
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text":"Collector File:${{ github.job }} -> ${{ github.workflow }} with status ${{ job.status }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

@@ -1,10 +1,10 @@
-# pysdk - Claude Agent Workflow
+# xerenity-backend - Claude Agent Workflow
 
 ## Project Info
 - **GitHub Org:** avelezX
-- **Repo:** pysdk
+- **Repo:** xerenity-backend (formerly pysdk)
 - **GitHub Project:** Xerenity (#4)
-- **Description:** Python SDK / pricing backend
+- **Description:** Backend consolidado — pricing, risk management, data collectors, core SDK
 
 ## Session Startup Protocol
 
@@ -25,15 +25,30 @@
 
 3. **Preguntar cual tarea trabajar** - Si el usuario no especifica, preguntar cual tarea del backlog quiere abordar.
 
-## Repos del ecosistema Xerenity
-- **xerenity-fe** - Frontend (React/TypeScript)
-- **xerenity-dm** - Data management / collectors (Python)
+## Repos del ecosistema Xerenity (consolidado marzo 2026)
+- **xerenity-backend** - Backend consolidado: pricing, risk, data collectors, core SDK (este repo)
+- **xerenity-fe** - Frontend (Next.js/TypeScript, deploy Vercel)
+- **xerenity-py** - Librería pública PyPI para clientes (v0.3.0)
 - **xerenity-db** - Migraciones y esquema DB (SQL/Supabase)
-- **xerenity-api** - API
-- **pysdk** - Python SDK / pricing backend (este repo)
-- **XerenityAddin** - Excel Addin (C#)
-- **xerenity-explorer** - Explorador de datos (Python/Jupyter)
-- **ui-components** - Libreria de componentes UI
+- **xerenity** - Landing page / redirect
+
+### Archivados
+- xerenity-api, ui-components (archivados, código absorbido o sin uso)
+- xerenity-dm (código en dm/ de este repo, pendiente archivar)
+
+## Estructura del monorepo
+```
+xerenity-backend/
+├── pricing/           # Instrumentos financieros (NDF, CCS, TES, swaps)
+├── gestion_de_riesgos/ # VaR, exposición, portafolio de riesgo
+├── server/            # Django API (pricing_api, risk_management_server)
+├── src/               # Módulos core (xerenity, collectors)
+├── dm/                # Data management (collectors de xerenity-dm)
+├── core-sdk/          # Core SDK original (connection, search, marks, loans)
+├── notebooks/         # Jupyter notebooks de ejemplo
+├── fly.toml           # Deploy Fly.io (app: xerenity-pysdk)
+└── Dockerfile
+```
 
 ## Workflow por Tarea
 
@@ -64,7 +79,7 @@ git checkout -b feature/<issue-number>-<short-description>
 
 ### 5. Crear nuevas tareas si se descubren
 ```bash
-gh issue create --repo avelezX/pysdk --title "..." --body "..."
+gh issue create --repo avelezX/xerenity-backend --title "..." --body "..."
 gh project item-add 4 --owner avelezX --url <issue-url>
 ```
 

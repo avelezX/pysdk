@@ -1,0 +1,31 @@
+name: Load DAILY IBR Marks (SUAMECA)
+run-name: Loading DAILY IBR Marks
+on:
+  workflow_dispatch:
+  schedule:
+    # 15:00 UTC (10:00 AM COT) — first run, BanRep publishes before this
+    - cron: '0 15 * * 1-5'
+    # 18:00 UTC (1:00 PM COT) — retry/confirm run
+    - cron: '0 18 * * 1-5'
+jobs:
+  collect_ibr_marks:
+    runs-on: ubuntu-latest
+    container:
+      image: avelezxerenity/xerenity:latest
+      options: --cpus 1
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Collect IBR marks from SUAMECA
+        run: python3 run_collect_ibr_marks.py
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "❌ IBR Marks Collector failed: ${{ github.workflow }} — Check ibr_quotes_curve immediately"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
