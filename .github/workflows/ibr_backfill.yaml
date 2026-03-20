@@ -1,0 +1,30 @@
+# This workflow runs the IBR SUAMECA backfill script manually.
+# It fetches ALL available IBR daily rate history from SUAMECA and inserts any
+# missing rows into banrep_series_value_v2, then refreshes ibr_quotes_curve.
+name: IBR SUAMECA Backfill
+run-name: IBR SUAMECA Backfill
+on:
+  workflow_dispatch:
+jobs:
+  ibr_backfill:
+    runs-on: ubuntu-latest
+    container:
+      image: avelezxerenity/xerenity:latest
+      options: --cpus 1
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Run IBR backfill
+        run: python3 run_backfill_ibr_suameca.py
+      - name: Notify Slack
+        if: failure()
+        id: slack
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text":"Collector:${{ github.job }} -> ${{ github.workflow }} with status ${{ job.status }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

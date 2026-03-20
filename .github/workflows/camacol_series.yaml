@@ -1,0 +1,35 @@
+# This workflow collects Camacol construction sector series
+# Reads data/series_camacol_completo.xlsx bundled in the repo
+# Data is updated periodically (not daily), monthly schedule is sufficient
+name: Load Camacol Series
+run-name: Loading Camacol Construction Series
+on:
+  workflow_dispatch:
+  schedule:
+    #UTC time - 1st of each month at 12:00 UTC (7:00 AM COT)
+    - cron: '0 12 1 * *'
+jobs:
+  collect_camacol_series:
+    runs-on: ubuntu-latest
+    container:
+      image: avelezxerenity/xerenity:latest
+      options: --cpus 1
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Install openpyxl
+        run: pip install openpyxl
+      - name: Run Camacol collector
+        run: python3 run_collect_camacol.py
+      - name: Notify Slack
+        if: failure()
+        id: slack
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text":"Collector:${{ github.job }} -> ${{ github.workflow }} with status ${{ job.status }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

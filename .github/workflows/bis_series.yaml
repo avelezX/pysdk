@@ -1,0 +1,33 @@
+name: BIS Rates Collector
+run-name: Loading BIS Rates
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 7 * * 1'  # Todos los lunes a las 7:00 AM UTC
+
+jobs:
+  collect_bis_rates:
+    runs-on: ubuntu-latest
+    container:
+      image: avelezxerenity/xerenity:latest
+      options: --cpus 1
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      
+      - name: Run BIS Rates Collector
+        run: python3 run_collect_bis_cbrates.py
+      
+      - name: Notify Slack on failure
+        if: failure()
+        id: slack_notify
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "Collector File: ${{ github.job }} -> ${{ github.workflow }} with status ${{ job.status }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
