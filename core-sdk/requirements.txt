@@ -1,0 +1,2 @@
+setuptools
+supabase>=2.4.4
