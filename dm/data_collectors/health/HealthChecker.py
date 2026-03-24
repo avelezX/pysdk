@@ -44,6 +44,10 @@ class HealthChecker:
             ('US Ref Rates (SOFR)', 'us_reference_rates', 'fecha', 48, {'rate_type': 'eq.SOFR'}, True),
             ('UST Yield Curve', 'ust_yield_curve', 'fecha', 48, {'curve_type': 'eq.NOMINAL'}, True),
 
+            # UVR & Inflation projections (daily, weekdays)
+            ('UVR Projection', 'uvr_projection', 'fecha', 48, None, True),
+            ('Inflación Implícita', 'inflacion_implicita', 'fecha', 48, None, True),
+
             # Weekly/monthly
             ('EMBI', 'embi', 'time', 168, None, False),
             ('CB Rates (BIS)', 'cb_rates', 'fecha', 900, None, False),

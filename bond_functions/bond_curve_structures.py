@@ -61,6 +61,7 @@ class BondCurve:
         Create a DataFrame with bond trading data.
 
         Args:
+            colt_tes (list): COLTES grid data (list of dicts with bond quotes).
             excluded_bonds (list): List of bonds to be excluded from the DataFrame.
 
         Returns:
@@ -71,17 +72,21 @@ class BondCurve:
 
         for key, value in bond_dict_cop.items():
             if key in excluded_bonds:
-                pass
-            else:
-                value_df = self.search_tes_by_name(col_tes=colt_tes, name=value.name)
-                cop_df.loc[key, 'volume'] = value_df['volume']
-                cop_df.loc[key, 'day'] = datetime.strptime(
-                    value_df['operation_time'].split('T')[0], '%Y-%m-%d').timestamp()
-                cop_df.loc[key, 'close'] = value_df['close']
-                cop_df.loc[key, 'open'] = value_df['open']
-                cop_df.loc[key, 'high'] = value_df['high']
-                cop_df.loc[key, 'low'] = value_df['low']
-                cop_df.loc[key, 'maturity'] = pd.to_datetime(value.maturity).date()
+                continue
+
+            value_df = self.search_tes_by_name(col_tes=colt_tes, name=value.name)
+            if value_df is None:
+                print(f"  Warning: no COLTES data for {key} ({value.name}), skipping")
+                continue
+
+            cop_df.loc[key, 'volume'] = value_df['volume']
+            cop_df.loc[key, 'day'] = datetime.strptime(
+                value_df['operation_time'].split('T')[0], '%Y-%m-%d').timestamp()
+            cop_df.loc[key, 'close'] = value_df['close']
+            cop_df.loc[key, 'open'] = value_df['open']
+            cop_df.loc[key, 'high'] = value_df['high']
+            cop_df.loc[key, 'low'] = value_df['low']
+            cop_df.loc[key, 'maturity'] = pd.to_datetime(value.maturity).date()
         return cop_df.sort_values(by='maturity')
 
     def search_tes_by_name(self, col_tes, name):
