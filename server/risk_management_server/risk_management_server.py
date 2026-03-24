@@ -220,9 +220,19 @@ class RiskManagementServer(XerenityFunctionServer):
 
         ref_date = datetime.strptime(self.filter_date, '%Y-%m-%d')
 
-        # Precio inicio: ultimo dia del mes anterior al mes de ref_date
+        # Precio inicio: ultimo dia habil del mes anterior
+        # Debe coincidir con la misma logica del frontend (lastBusinessDay)
+        # para que price_start de este mes == price_end del mes anterior
         first_of_current = ref_date.replace(day=1)
-        price_start_date = first_of_current - timedelta(days=1)  # ej: Jan 31
+        last_cal_day_prev = first_of_current - timedelta(days=1)  # ej: Jan 31
+        # Retroceder al viernes si cae en fin de semana
+        wd = last_cal_day_prev.weekday()  # 0=Mon, 5=Sat, 6=Sun
+        if wd == 5:
+            price_start_date = last_cal_day_prev - timedelta(days=1)  # Sat -> Fri
+        elif wd == 6:
+            price_start_date = last_cal_day_prev - timedelta(days=2)  # Sun -> Fri
+        else:
+            price_start_date = last_cal_day_prev
 
         # Precio fin: la fecha del filtro (ref_date)
         price_end_date = ref_date  # ej: Feb 27
@@ -298,12 +308,15 @@ class RiskManagementServer(XerenityFunctionServer):
             return v
 
         def find_price(df, col, target_date):
-            """Find the closest available price on or before target_date."""
+            """Find the closest available price on or before target_date.
+            Returns (price, actual_date) tuple."""
             mask = df['date'] <= target_date.strftime('%Y-%m-%d')
             subset = df.loc[mask, ['date', col]].dropna(subset=[col])
             if subset.empty:
-                return None
-            return round(float(subset.iloc[-1][col]), 4)
+                return None, None
+            row = subset.iloc[-1]
+            actual_date = str(row['date'])[:10]
+            return round(float(row[col]), 4), actual_date
 
         contracts = get_risk_contracts(
             initial_date=start_history.strftime('%Y-%m-%d'),
@@ -311,9 +324,15 @@ class RiskManagementServer(XerenityFunctionServer):
         )
 
         result = {}
+        actual_start_dates = []
+        actual_end_dates = []
         for col in price_cols:
-            p_start = find_price(prices_df, col, price_start_date)
-            p_end = find_price(prices_df, col, price_end_date)
+            p_start, d_start = find_price(prices_df, col, price_start_date)
+            p_end, d_end = find_price(prices_df, col, price_end_date)
+            if d_start:
+                actual_start_dates.append(d_start)
+            if d_end:
+                actual_end_dates.append(d_end)
             result[col] = {
                 'factor_var_diario': clean(factors.get(col, 0)),
                 'daily_variance': daily_variance.get(col),
@@ -323,6 +342,10 @@ class RiskManagementServer(XerenityFunctionServer):
                 'contract': contracts.get(col),
             }
 
+        # Use actual data dates, not requested dates
+        real_start = max(actual_start_dates) if actual_start_dates else price_start_date.strftime('%Y-%m-%d')
+        real_end = max(actual_end_dates) if actual_end_dates else price_end_date.strftime('%Y-%m-%d')
+
         return responseHttpOk(body={
             'factors': result,
             'covariance_matrix': cov_dict,
@@ -330,8 +353,8 @@ class RiskManagementServer(XerenityFunctionServer):
             'assets': price_cols,
             'contracts': contracts,
             'period': {
-                'start': price_start_date.strftime('%Y-%m-%d'),
-                'end': price_end_date.strftime('%Y-%m-%d'),
+                'start': real_start,
+                'end': real_end,
             },
             'covariance_period': {
                 'start': cov_start,

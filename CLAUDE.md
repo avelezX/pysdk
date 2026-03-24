@@ -46,7 +46,7 @@ xerenity-backend/
 ├── dm/                # Data management (collectors de xerenity-dm)
 ├── core-sdk/          # Core SDK original (connection, search, marks, loans)
 ├── notebooks/         # Jupyter notebooks de ejemplo
-├── fly.toml           # Deploy Fly.io (app: xerenity-pysdk)
+├── fly.toml           # Deploy Fly.io (app: pysdk)
 └── Dockerfile
 ```
 
