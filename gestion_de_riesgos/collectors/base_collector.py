@@ -251,23 +251,35 @@ class BaseCollector(ABC):
         pass
 
     def collect_and_store(self, start_date: str, end_date: str) -> int:
-        """Obtiene precios y los almacena en Supabase."""
-        from gestion_de_riesgos.db_risk import upsert_risk_prices
+        """Obtiene precios y los almacena en Supabase (solo fechas nuevas)."""
+        from gestion_de_riesgos.db_risk import _fetch_risk_prices_raw, upsert_risk_prices
 
         prices_df = self.fetch_prices(start_date, end_date)
         if prices_df.empty:
             return 0
 
+        # Filtrar: solo insertar fechas que no existen en Supabase para este asset
+        existing = _fetch_risk_prices_raw(start_date, end_date)
+        if not existing.empty:
+            existing_dates = set(
+                existing[existing['asset'] == self.asset_name]['date'].tolist()
+            )
+        else:
+            existing_dates = set()
+
         records = [
             {
-                'date': str(row['date']),
+                'date': str(row['date'])[:10],
                 'asset': self.asset_name,
                 'price': float(row['close']),
                 'contract': row.get('contract'),
-                'collected_at': datetime.now().isoformat(),
             }
             for _, row in prices_df.iterrows()
+            if str(row['date'])[:10] not in existing_dates
         ]
+
+        if not records:
+            return 0
 
         upsert_risk_prices(records)
         return len(records)

@@ -210,6 +210,72 @@ def risk_update_prices(request):
         return responseHttpError(message=str(e), code=400)
 
 
+def risk_futures_portfolio(request):
+    try:
+        from server.risk_management_server.risk_management_server import RiskManagementServer
+        calc = RiskManagementServer(json.loads(request.body))
+        return calc.futures_portfolio()
+    except XerenityError as xerror:
+        return responseHttpError(message=xerror.message, code=xerror.code)
+    except Exception as e:
+        return responseHttpError(message=str(e), code=400)
+
+
+def risk_futures_portfolio_upsert(request):
+    try:
+        from server.risk_management_server.risk_management_server import RiskManagementServer
+        calc = RiskManagementServer(json.loads(request.body))
+        return calc.futures_portfolio_upsert()
+    except XerenityError as xerror:
+        return responseHttpError(message=xerror.message, code=xerror.code)
+    except Exception as e:
+        return responseHttpError(message=str(e), code=400)
+
+
+def risk_futures_portfolio_roll(request):
+    try:
+        from server.risk_management_server.risk_management_server import RiskManagementServer
+        calc = RiskManagementServer(json.loads(request.body))
+        return calc.futures_portfolio_roll()
+    except XerenityError as xerror:
+        return responseHttpError(message=xerror.message, code=xerror.code)
+    except Exception as e:
+        return responseHttpError(message=str(e), code=400)
+
+
+def risk_futures_portfolio_close(request):
+    try:
+        from server.risk_management_server.risk_management_server import RiskManagementServer
+        calc = RiskManagementServer(json.loads(request.body))
+        return calc.futures_portfolio_close()
+    except XerenityError as xerror:
+        return responseHttpError(message=xerror.message, code=xerror.code)
+    except Exception as e:
+        return responseHttpError(message=str(e), code=400)
+
+
+def risk_futures_portfolio_delete(request):
+    try:
+        from server.risk_management_server.risk_management_server import RiskManagementServer
+        calc = RiskManagementServer(json.loads(request.body))
+        return calc.futures_portfolio_delete()
+    except XerenityError as xerror:
+        return responseHttpError(message=xerror.message, code=xerror.code)
+    except Exception as e:
+        return responseHttpError(message=str(e), code=400)
+
+
+def risk_futures_portfolio_edit(request):
+    try:
+        from server.risk_management_server.risk_management_server import RiskManagementServer
+        calc = RiskManagementServer(json.loads(request.body))
+        return calc.futures_portfolio_edit()
+    except XerenityError as xerror:
+        return responseHttpError(message=xerror.message, code=xerror.code)
+    except Exception as e:
+        return responseHttpError(message=str(e), code=400)
+
+
 def wake_up(request):
     return responseHttpOk(body={"message": "Servidor de creditos activado"})
 
@@ -230,6 +296,12 @@ urlpatterns = [
     path("risk_exposure", csrf_exempt(risk_exposure), name="risk_exposure"),
     path("risk_collectors_status", csrf_exempt(risk_collectors_status), name="risk_collectors_status"),
     path("risk_update_prices", csrf_exempt(risk_update_prices), name="risk_update_prices"),
+    path("risk_futures_portfolio", csrf_exempt(risk_futures_portfolio), name="risk_futures_portfolio"),
+    path("risk_futures_portfolio_upsert", csrf_exempt(risk_futures_portfolio_upsert), name="risk_futures_portfolio_upsert"),
+    path("risk_futures_portfolio_roll", csrf_exempt(risk_futures_portfolio_roll), name="risk_futures_portfolio_roll"),
+    path("risk_futures_portfolio_close", csrf_exempt(risk_futures_portfolio_close), name="risk_futures_portfolio_close"),
+    path("risk_futures_portfolio_delete", csrf_exempt(risk_futures_portfolio_delete), name="risk_futures_portfolio_delete"),
+    path("risk_futures_portfolio_edit", csrf_exempt(risk_futures_portfolio_edit), name="risk_futures_portfolio_edit"),
     # Pricing API
     path("pricing/curves/build", pricing_build, name="pricing_build"),
     path("pricing/curves/status", pricing_status, name="pricing_status"),
