@@ -1,8 +1,17 @@
 """
 Portafolio de futuros para gestion de riesgos.
 
-Calcula P&L (diario, mensual, desde inicio) para posiciones individuales
+Calcula P&L mensual y desde inicio para posiciones individuales
 de futuros de commodities (MAIZ, AZUCAR, CACAO) operadas en cuentas de margen.
+
+Logica de precios:
+- Precio Compra: siempre el entry_price (fijo)
+- Precio Actual: ultimo precio disponible en Supabase
+- Precio Previo: si la posicion se abrio en el mes seleccionado -> entry_price
+                 si ya lleva mas de 1 mes -> ultimo dia habil del mes anterior
+
+P&L Mes = (Precio Actual - Precio Previo) x nominal x multiplicador x direccion
+P&L Inicio = (Precio Actual - Precio Compra) x nominal x multiplicador x direccion
 
 Soporta posiciones LONG y SHORT, y roll de contratos.
 """
@@ -49,17 +58,6 @@ def _last_business_day_of_prev_month(ref_date: date) -> date:
     return last_cal_day
 
 
-def _prev_business_day(ref_date: date) -> date:
-    """Dia habil anterior (retrocede sabados y domingos)."""
-    prev = ref_date - timedelta(days=1)
-    wd = prev.weekday()
-    if wd == 5:
-        return prev - timedelta(days=1)
-    elif wd == 6:
-        return prev - timedelta(days=2)
-    return prev
-
-
 def _find_price(prices_df: pd.DataFrame, asset: str, target_date: date):
     """
     Busca el precio mas reciente en o antes de target_date.
@@ -88,10 +86,10 @@ class FuturesPortfolioCalculator:
 
     Calcula:
     - valor_t:       nominal * multiplier * precio actual
-    - valor_t1:      nominal * multiplier * precio dia anterior
-    - daily_pnl:     diferencia diaria considerando direccion
+    - precio_previo: entry_price si la posicion se abrio en el mes seleccionado,
+                     ultimo dia habil del mes anterior si la posicion es mas vieja
     - pnl_inception: P&L desde precio de compra
-    - pnl_month:     P&L del mes corriente (desde ultimo dia habil del mes anterior)
+    - pnl_month:     P&L del mes (desde precio_previo)
     """
 
     def __init__(
@@ -106,13 +104,11 @@ class FuturesPortfolioCalculator:
 
     def calculate(self) -> list[dict]:
         ref = self.filter_date
-        prev_bday = _prev_business_day(ref)
         month_start = _last_business_day_of_prev_month(ref)
 
         rows = []
         totals = {
-            'valor_t': 0, 'valor_t1': 0,
-            'daily_pnl': 0, 'pnl_inception': 0, 'pnl_month': 0,
+            'valor_t': 0, 'pnl_inception': 0, 'pnl_month': 0,
         }
 
         for pos in self.positions:
@@ -123,24 +119,23 @@ class FuturesPortfolioCalculator:
             multiplier = CONTRACT_MULTIPLIERS.get(asset, 1)
             dir_sign = DIRECTION_SIGN.get(direction, 1)
 
+            # Precio actual: ultimo disponible hasta filter_date
             current_price, current_date = _find_price(self.prices, asset, ref)
-            prev_price, _ = _find_price(self.prices, asset, prev_bday)
-            month_start_price, month_start_actual = _find_price(
-                self.prices, asset, month_start
-            )
 
-            # Si la posicion se abrio dentro del mes corriente,
-            # el P&L mensual arranca desde el entry_price
+            # Precio previo: depende de cuando se abrio la posicion
             entry_dt = datetime.strptime(pos['entry_date'], '%Y-%m-%d').date()
             if entry_dt > month_start:
-                month_ref_price = entry_price
+                # Posicion abierta en el mes corriente -> previo = precio de compra
+                precio_previo = entry_price
+                precio_previo_date = pos['entry_date']
             else:
-                month_ref_price = month_start_price
+                # Posicion de meses anteriores -> previo = ultimo dia habil mes anterior
+                precio_previo, precio_previo_date = _find_price(
+                    self.prices, asset, month_start
+                )
 
             # Calculos
             valor_t = None
-            valor_t1 = None
-            daily_pnl = None
             pnl_inception = None
             pnl_month = None
 
@@ -148,14 +143,8 @@ class FuturesPortfolioCalculator:
                 valor_t = nominal * multiplier * current_price
                 pnl_inception = (current_price - entry_price) * nominal * multiplier * dir_sign
 
-            if prev_price is not None:
-                valor_t1 = nominal * multiplier * prev_price
-
-            if current_price is not None and prev_price is not None:
-                daily_pnl = (current_price - prev_price) * nominal * multiplier * dir_sign
-
-            if current_price is not None and month_ref_price is not None:
-                pnl_month = (current_price - month_ref_price) * nominal * multiplier * dir_sign
+            if current_price is not None and precio_previo is not None:
+                pnl_month = (current_price - precio_previo) * nominal * multiplier * dir_sign
 
             row = {
                 'id': pos.get('id'),
@@ -168,11 +157,9 @@ class FuturesPortfolioCalculator:
                 'entry_date': pos['entry_date'],
                 'current_price': _safe_round(current_price, 4),
                 'current_price_date': current_date,
-                'previous_price': _safe_round(prev_price, 4),
-                'month_start_price': _safe_round(month_ref_price, 4),
+                'precio_previo': _safe_round(precio_previo, 4),
+                'precio_previo_date': precio_previo_date,
                 'valor_t': _safe_round(valor_t),
-                'valor_t1': _safe_round(valor_t1),
-                'daily_pnl': _safe_round(daily_pnl),
                 'pnl_inception': _safe_round(pnl_inception),
                 'pnl_month': _safe_round(pnl_month),
                 'price_unit': PRICE_UNITS.get(asset, ''),
@@ -197,11 +184,9 @@ class FuturesPortfolioCalculator:
             'entry_date': None,
             'current_price': None,
             'current_price_date': None,
-            'previous_price': None,
-            'month_start_price': None,
+            'precio_previo': None,
+            'precio_previo_date': None,
             'valor_t': _safe_round(totals['valor_t']),
-            'valor_t1': _safe_round(totals['valor_t1']),
-            'daily_pnl': _safe_round(totals['daily_pnl']),
             'pnl_inception': _safe_round(totals['pnl_inception']),
             'pnl_month': _safe_round(totals['pnl_month']),
             'price_unit': None,
