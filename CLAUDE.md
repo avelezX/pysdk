@@ -128,6 +128,8 @@ curl -s -X POST http://localhost:8000/risk_benchmark_factors \
 - `POST /risk_futures_portfolio_upsert` — crear/actualizar posiciones
 - `POST /risk_futures_portfolio_roll` — roll de contrato
 - `POST /risk_futures_portfolio_close` — cerrar posicion
+- `POST /risk_futures_portfolio_delete` — eliminar posicion
+- `POST /risk_futures_portfolio_edit` — editar campos de posicion
 
 **Pricing API:**
 - `POST /pricing/curves/build` — construir curvas (IBR, SOFR, NDF, TES)

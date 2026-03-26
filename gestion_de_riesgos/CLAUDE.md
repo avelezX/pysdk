@@ -85,17 +85,20 @@ Modela exposición de Super de Alimentos en USD:
 - Information Ratio (P&L GR / VaR GR)
 - Output: `build_risk_table()` → lista de dicts lista para API
 
-### futures_portfolio.py (NUEVO)
+### futures_portfolio.py
 `FuturesPortfolioCalculator` — P&L por posición individual de futuros:
 - Soporta LONG y SHORT (cuentas de margen)
 - Multiplicadores por contrato: MAIZ=5,000 bu, AZUCAR=112,000 lbs, CACAO=10 ton
+- **Precio Compra**: siempre fijo (entry_price)
+- **Precio Previo**: si la posición se abrió en el mes seleccionado → entry_price;
+  si lleva más de 1 mes → último día hábil del mes anterior (misma lógica que benchmark)
+- **Precio Actual**: último precio disponible en Supabase
 - **Valor T** = nominal x multiplicador x precio actual
-- **Valor T-1** = nominal x multiplicador x precio día anterior
-- **P&L diario** = delta precio x nominal x multiplicador x dirección
-- **P&L desde inicio** = (precio actual - precio compra) x nominal x mult x dir
-- **P&L mensual** = desde último día hábil del mes anterior (misma lógica que benchmark)
+- **Valor T-1** = nominal x multiplicador x precio previo
+- **P&L Mes** = (precio actual - precio previo) x nominal x mult x dirección
+- **P&L Inicio** = (precio actual - precio compra) x nominal x mult x dirección
 - Roll de contratos: cierra posición vieja → abre nueva con `rolled_to` link
-- Si la posición se abrió dentro del mes corriente, P&L mensual arranca desde entry_price
+- Navegación por mes (misma lógica que benchmark): el filter_date se calcula como último día hábil del mes seleccionado
 
 ### sql/risk_futures_portfolio.sql
 DDL para crear la tabla `risk_futures_portfolio` en Supabase:
@@ -118,17 +121,10 @@ Expuesto en `server/risk_management_server/risk_management_server.py` como `Risk
 | `futures_portfolio_upsert()` | Crear/actualizar posiciones de futuros |
 | `futures_portfolio_roll()` | Ejecutar roll de contrato (cierra + abre) |
 | `futures_portfolio_close()` | Cerrar una posición de futuros |
+| `futures_portfolio_delete()` | Eliminar una posición de futuros |
+| `futures_portfolio_edit()` | Editar campos de una posición existente |
 
 Request mínimo: `{"filter_date": "2026-03-25"}`. Soporta `mock: true` para datos de prueba.
-
-## Historial de commits
-```
-f09868f fix(risk): align benchmark prices between months and update app name
-6b5ae77 fix(risk): replace user login auth with REST API pattern
-ecba1b2 feat(risk): improve futures roll logic, exposure calc, and VaR confidence
-a8ea725 creacion gestion de riesgo
-bd3af94 Add risk management module with benchmark, rolling VaR, and hardcoded prices
-```
 
 ## Convenciones
 - Posiciones negativas = compra de commodity (exposición corta/natural del negocio)
